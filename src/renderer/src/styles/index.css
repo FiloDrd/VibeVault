@@ -1,0 +1,219 @@
+@import 'tailwindcss';
+
+/* ------------------------------------------------------------------
+   Design tokens VibeVault
+   Tutti i colori passano da variabili CSS: i temi cambiano solo queste.
+   ------------------------------------------------------------------ */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --vv-bg: #0a0c10;
+  --vv-panel: #0f1218;
+  --vv-elev: #151922;
+  --vv-elev-2: #1c212c;
+  --vv-hover: rgba(255, 255, 255, 0.05);
+  --vv-active: rgba(255, 255, 255, 0.09);
+  --vv-line: rgba(255, 255, 255, 0.07);
+  --vv-line-strong: rgba(255, 255, 255, 0.14);
+  --vv-fg: #e8eaf0;
+  --vv-dim: #9ba3b4;
+  --vv-faint: #626b7d;
+  --vv-accent: #8b93ff;
+  --vv-accent-strong: #6f78ff;
+  --vv-accent-soft: rgba(139, 147, 255, 0.14);
+  --vv-accent-fg: #0b0d16;
+  --vv-ok: #3ddc97;
+  --vv-warn: #ffc857;
+  --vv-danger: #ff6b7a;
+  --vv-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  --vv-skeleton: #161a22;
+  --vv-scrim: rgba(3, 4, 6, 0.985);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --vv-bg: #f5f6f8;
+  --vv-panel: #ffffff;
+  --vv-elev: #ffffff;
+  --vv-elev-2: #eef0f4;
+  --vv-hover: rgba(15, 20, 40, 0.05);
+  --vv-active: rgba(15, 20, 40, 0.09);
+  --vv-line: rgba(15, 20, 40, 0.08);
+  --vv-line-strong: rgba(15, 20, 40, 0.16);
+  --vv-fg: #151923;
+  --vv-dim: #5a6273;
+  --vv-faint: #8b93a3;
+  --vv-accent: #5a63f0;
+  --vv-accent-strong: #464fe0;
+  --vv-accent-soft: rgba(90, 99, 240, 0.12);
+  --vv-accent-fg: #ffffff;
+  --vv-ok: #12a86b;
+  --vv-warn: #c98a00;
+  --vv-danger: #e0354a;
+  --vv-shadow: 0 10px 40px rgba(20, 25, 40, 0.14);
+  --vv-skeleton: #e6e8ee;
+  --vv-scrim: rgba(8, 10, 14, 0.94);
+}
+
+:root[data-theme='high-contrast'] {
+  color-scheme: dark;
+  --vv-bg: #000000;
+  --vv-panel: #000000;
+  --vv-elev: #0a0a0a;
+  --vv-elev-2: #141414;
+  --vv-hover: rgba(255, 255, 255, 0.12);
+  --vv-active: rgba(255, 255, 255, 0.2);
+  --vv-line: rgba(255, 255, 255, 0.45);
+  --vv-line-strong: #ffffff;
+  --vv-fg: #ffffff;
+  --vv-dim: #e6e6e6;
+  --vv-faint: #bdbdbd;
+  --vv-accent: #ffe14d;
+  --vv-accent-strong: #ffd000;
+  --vv-accent-soft: rgba(255, 225, 77, 0.2);
+  --vv-accent-fg: #000000;
+  --vv-ok: #4dff9d;
+  --vv-warn: #ffe14d;
+  --vv-danger: #ff5c6c;
+  --vv-shadow: none;
+  --vv-skeleton: #111111;
+  --vv-scrim: #000000;
+}
+
+@theme inline {
+  --color-bg: var(--vv-bg);
+  --color-panel: var(--vv-panel);
+  --color-elev: var(--vv-elev);
+  --color-elev-2: var(--vv-elev-2);
+  --color-hover: var(--vv-hover);
+  --color-active: var(--vv-active);
+  --color-line: var(--vv-line);
+  --color-line-strong: var(--vv-line-strong);
+  --color-fg: var(--vv-fg);
+  --color-dim: var(--vv-dim);
+  --color-faint: var(--vv-faint);
+  --color-accent: var(--vv-accent);
+  --color-accent-strong: var(--vv-accent-strong);
+  --color-accent-soft: var(--vv-accent-soft);
+  --color-accent-fg: var(--vv-accent-fg);
+  --color-ok: var(--vv-ok);
+  --color-warn: var(--vv-warn);
+  --color-danger: var(--vv-danger);
+  --color-skeleton: var(--vv-skeleton);
+  --color-scrim: var(--vv-scrim);
+  --shadow-pop: var(--vv-shadow);
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, 'SF Pro Text', 'Inter', Roboto, 'Helvetica Neue', sans-serif;
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, 'SF Pro Display', sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--vv-bg);
+  color: var(--vv-fg);
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  overflow: hidden;
+}
+
+input,
+textarea,
+select {
+  user-select: text;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--vv-line-strong) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--vv-line-strong);
+  border-radius: 10px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--vv-accent);
+  outline-offset: 2px;
+}
+
+.drag-region {
+  -webkit-app-region: drag;
+}
+.no-drag,
+.drag-region button,
+.drag-region input,
+.drag-region select,
+.drag-region a {
+  -webkit-app-region: no-drag;
+}
+
+/* Skeleton shimmer per miniature in caricamento */
+.skeleton {
+  background: linear-gradient(100deg, var(--vv-skeleton) 20%, color-mix(in srgb, var(--vv-skeleton), white 4%) 40%, var(--vv-skeleton) 60%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes flash {
+  0% { opacity: 0; transform: scale(0.8); }
+  30% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.05); }
+}
+.anim-fade { animation: fade-in 160ms ease-out both; }
+.anim-pop { animation: pop-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.anim-flash { animation: flash 600ms ease-out both; }
+
+:root[data-motion='reduced'] *,
+:root[data-motion='reduced'] *::before,
+:root[data-motion='reduced'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+.checker {
+  background-image: linear-gradient(45deg, #1a1d24 25%, transparent 25%), linear-gradient(-45deg, #1a1d24 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1a1d24 75%), linear-gradient(-45deg, transparent 75%, #1a1d24 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+
+.sensitive-blur img {
+  filter: blur(18px) saturate(0.6);
+}

@@ -1,0 +1,48 @@
+# Build portatile VibeVault
+#   npm run dist:ssd   → release/VibeVault/ pronta da copiare sull'SSD (consigliato: avvio rapido)
+#   npm run dist:portable → singolo .exe portatile (si estrae a ogni avvio: più lento)
+appId: eu.vibevault.app
+productName: VibeVault
+executableName: VibeVault
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+  - "!**/*.map"
+asarUnpack:
+  - node_modules/sharp/**/*
+  - node_modules/@img/**/*
+  - node_modules/better-sqlite3/**/*
+  - node_modules/ffmpeg-static/**/*
+  - node_modules/ffprobe-static/**/*
+npmRebuild: false
+buildDependenciesFromSource: false
+win:
+  target:
+    - target: dir
+      arch: [x64]
+  signAndEditExecutable: false
+  files:
+    - "!node_modules/@img/sharp-wasm32/**"
+    - "!node_modules/ffprobe-static/bin/darwin/**"
+    - "!node_modules/ffprobe-static/bin/linux/**"
+    - "!node_modules/ffprobe-static/bin/win32/ia32/**"
+    - "!node_modules/better-sqlite3/prebuilds/{linux,darwin,linuxmusl}*"
+    - "!node_modules/better-sqlite3/{src,deps,docs,benchmark}/**"
+  artifactName: VibeVault-${version}-portable.exe
+portable:
+  requestExecutionLevel: user
+  unicode: true
+mac:
+  target: [dir]
+  files:
+    - "!node_modules/ffprobe-static/bin/win32/**"
+    - "!node_modules/ffprobe-static/bin/linux/**"
+linux:
+  target: [dir]
+  files:
+    - "!node_modules/ffprobe-static/bin/win32/**"
+    - "!node_modules/ffprobe-static/bin/darwin/**"
+    - "!node_modules/ffprobe-static/bin/linux/{ia32,arm,arm64}/**"

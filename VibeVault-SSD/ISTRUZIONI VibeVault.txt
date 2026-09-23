@@ -1,0 +1,218 @@
+================================================================
+  VIBEVAULT — Istruzioni d'uso (versione portatile 0.1)
+================================================================
+
+VibeVault è un'app per rivedere, organizzare e pulire foto, video
+e GIF direttamente dall'SSD. Funziona offline, senza account e senza
+cloud, e non modifica mai i tuoi file originali. Tutto (database,
+miniature, cestino) resta sull'SSD.
+
+
+----------------------------------------------------------------
+ 1. PREPARARE L'SSD (una volta sola)
+----------------------------------------------------------------
+
+ 1) Crea sull'SSD una cartella dedicata, per esempio:  E:\VibeVault\
+ 2) Copia dentro  VibeVault.exe  e questo file di istruzioni.
+ 3) Avvia VibeVault.exe con un doppio clic.
+
+ Al primo avvio l'app crea accanto all'exe queste cartelle:
+
+   E:\VibeVault\
+     VibeVault.exe
+     Library\      <- METTI QUI FOTO, VIDEO E GIF (anche in sottocartelle)
+     VaultData\    database, backup automatici, impostazioni
+     Cache\        miniature (si possono cancellare, si rigenerano)
+     Trash\        cestino interno dell'app
+     Exports\      file esportati
+     Logs\         registro delle operazioni
+
+ IMPORTANTE: non mettere l'exe nella radice dell'SSD (E:\): creerebbe
+ le cartelle lì in mezzo ai tuoi altri file. Usa una cartella dedicata.
+
+ Avvisi di Windows al primo avvio:
+  - "PC protetto da Windows" (SmartScreen): l'app non è firmata
+    digitalmente. Clicca "Ulteriori informazioni" > "Esegui comunque".
+  - L'avvio richiede qualche secondo: l'exe unico si scompatta
+    a ogni avvio in una cartella temporanea di Windows. È normale.
+
+
+----------------------------------------------------------------
+ 2. AGGIUNGERE I MEDIA
+----------------------------------------------------------------
+
+ - Copia foto, video e GIF dentro  Library\  con Esplora risorse,
+   organizzati come preferisci (es. Library\Foto\2024\Vacanze).
+ - In VibeVault premi "Scansiona ora" (o l'icona ↻ in alto a destra).
+   All'avvio l'app fa comunque una scansione automatica.
+ - La scansione è incrementale: rilegge solo i file nuovi o cambiati.
+ - Se sposti o rinomini file con Esplora risorse, alla scansione
+   successiva VibeVault li riconosce e mantiene tag, album e voti.
+
+ Formati: JPG, PNG, WebP, GIF, AVIF, BMP, TIFF, HEIC*, RAW* (DNG, CR2,
+ CR3, NEF, ARW, RAF, ORF, RW2...), MP4, MOV, MKV, WebM, AVI e altri.
+ (* HEIC e RAW mostrano l'anteprima incorporata nel file)
+
+
+----------------------------------------------------------------
+ 3. L'INTERFACCIA
+----------------------------------------------------------------
+
+ - Sinistra: Libreria (Tutti, Foto, Video, GIF, Raw, Screenshot),
+   Organizza (Review, Duplicati, Preferiti, Recenti, File grandi,
+   Senza data, Archivio), Album, Tag, Cartelle, Cestino, Statistiche,
+   Impostazioni.
+ - Centro: la timeline, raggruppata per giorno come Google Foto.
+ - Destra: il pannello info dell'elemento selezionato (tasto I):
+   dettagli, voto, tag, album, note, posizione GPS, percorso.
+
+ Selezione:
+   clic                 seleziona un elemento
+   Ctrl + clic          aggiunge/toglie dalla selezione
+   Shift + clic         seleziona un intervallo
+   clic sul giorno      seleziona tutto il gruppo
+   doppio clic / Invio  apre a schermo intero (Esc per chiudere)
+
+ Con più elementi selezionati compare in basso una barra con le
+ azioni: preferiti, tieni/forse/scarta, tag, album, sposta, copia,
+ rinomina, archivia, cestino.
+
+ Trascina la selezione su un album, un tag, una cartella (= sposta),
+ Preferiti, Archivio o Cestino nella barra a sinistra.
+
+
+----------------------------------------------------------------
+ 4. REVIEW: DECIDERE VELOCEMENTE COSA TENERE
+----------------------------------------------------------------
+
+ Apri "Review" (tasto R). Vedi un elemento alla volta, a schermo intero.
+
+   K        Tieni
+   M        Forse
+   X        Scarta   (segna soltanto: il file NON viene spostato)
+   F        Preferito
+   1..5     voto in stelle (0 = nessuno)
+   S  / →   salta   ·   ←  torna indietro
+   Z        annulla l'ultima decisione
+   Spazio   play/pausa dei video
+
+ In alto scegli cosa rivedere: "Da rivedere", "Forse" o "Tutti",
+ e se solo foto, video o GIF.
+
+ Alla fine premi "Sposta N scartati nel cestino": vedrai prima quanti
+ file e quanto spazio sono coinvolti, poi confermi.
+
+
+----------------------------------------------------------------
+ 5. SICUREZZA: COME VENGONO PROTETTI I TUOI FILE
+----------------------------------------------------------------
+
+ - Nessun file viene mai sovrascritto. Se in una cartella esiste già
+   un file con lo stesso nome, VibeVault usa "nome (1).jpg".
+ - ELIMINARE non cancella: sposta nel Cestino interno (cartella Trash\).
+   Dal Cestino puoi ripristinare in qualsiasi momento.
+ - L'unica cancellazione definitiva è "Svuota cestino", che chiede due
+   conferme (la seconda richiede di scrivere ELIMINA).
+ - I PREFERITI sono protetti: non vanno nel cestino finché non togli
+   il preferito.
+ - ANNULLA: Ctrl+Z, oppure "Annulla" nel messaggio che compare in basso
+   dopo ogni azione. La cronologia completa, con il tasto Annulla per
+   ogni operazione, è in Impostazioni > Cronologia operazioni.
+ - Prima delle operazioni su 50 o più file viene fatto un backup
+   automatico del database (VaultData\backups\, ultimi 10).
+ - Nessun dato esce dal computer: l'app non usa internet.
+
+ NON cancellare a mano le cartelle VaultData\ o Trash\: perderesti tag,
+ album, voti e i file nel cestino. Cache\ invece si può svuotare
+ (anche da Impostazioni > Svuota cache miniature).
+
+
+----------------------------------------------------------------
+ 6. ORGANIZZARE
+----------------------------------------------------------------
+
+ - Album: sono virtuali, i file non si spostano. Crea con "+" accanto
+   ad "Album" o con il tasto A sulla selezione.
+ - Tag: tasto T sulla selezione, oppure dal pannello info.
+ - Cartelle reali: "Sposta in cartella" o "Copia in cartella" dalla
+   barra azioni; puoi creare una nuova cartella direttamente lì.
+   Oppure Ctrl+C / Ctrl+X, apri una cartella nella sidebar, Ctrl+V.
+ - Rinomina: F2. Con più file puoi usare un modello, es.
+   {YYYY}-{MM}-{DD}_{nnn}  ->  2024-07-15_001.jpg  (con anteprima)
+ - Duplicati: la vista "Duplicati" trova i file identici; "Verifica
+   SHA-256" li controlla byte per byte; "Tieni il migliore" segna le
+   copie come Scarta (nessun file viene toccato finché non svuoti gli
+   scartati).
+ - Archivio: nasconde elementi dalla timeline senza spostarli.
+
+
+----------------------------------------------------------------
+ 7. CERCARE
+----------------------------------------------------------------
+
+ Ctrl+F oppure la barra in alto. Scrivi parole del nome, dei tag o
+ delle note, oppure usa i filtri (anche insieme):
+
+   tag:mare          con il tag "mare"
+   ext:jpg           per formato
+   year:2023         per anno
+   camera:fuji       per fotocamera
+   folder:Viaggi     per cartella
+   rating:>=4        per voto
+   is:fav  is:video  is:gif  is:raw  is:keep  is:maybe  is:trash
+   is:screenshot  is:gps
+
+
+----------------------------------------------------------------
+ 8. SCORCIATOIE PRINCIPALI
+----------------------------------------------------------------
+
+   Ctrl+K     palette comandi (cerca qualsiasi azione)
+   Ctrl+F     cerca
+   Ctrl+A     seleziona tutto
+   Ctrl+Z     annulla
+   Canc       sposta nel cestino
+   F K M X    preferito / tieni / forse / scarta
+   1..5       voto
+   T  A  F2   tag / album / rinomina
+   G          dimensione miniature
+   I          pannello info
+   D          duplicati
+   R          review
+   ← →        precedente / successivo
+
+
+----------------------------------------------------------------
+ 9. USARE L'SSD SU UN ALTRO PC
+----------------------------------------------------------------
+
+ Collega l'SSD e avvia VibeVault.exe dalla sua cartella. Non importa
+ se la lettera dell'unità cambia (E:, F:, ...): l'app usa percorsi
+ relativi e ritrova tutto. Non serve installare nulla.
+
+ Per fare una copia di sicurezza completa basta copiare l'intera
+ cartella VibeVault\ (con l'app chiusa).
+
+
+----------------------------------------------------------------
+ 10. PROBLEMI COMUNI
+----------------------------------------------------------------
+
+ - Un video non parte: il codec non è supportato dal player interno.
+   Usa il pulsante "Apri nel player di sistema".
+ - Miniature mancanti o sbagliate: Impostazioni > Svuota cache
+   miniature (vengono rigenerate).
+ - Tanti file "mancanti" dopo aver riorganizzato le cartelle a mano:
+   lancia una nuova scansione; i file spostati vengono ritrovati.
+ - L'antivirus rallenta la scansione: aggiungi la cartella VibeVault\
+   dell'SSD alle eccezioni.
+ - Il database risulta danneggiato: all'avvio l'app lo mette da parte
+   (non lo cancella), ne crea uno nuovo e basta una scansione per
+   ritrovare i file. I backup sono in VaultData\backups\.
+ - Chiudi sempre VibeVault prima di scollegare l'SSD.
+
+
+----------------------------------------------------------------
+ Cosa manca in questa versione 0.1: editor foto/video, ottimizzatore
+ GIF e regole di organizzazione automatica (in arrivo).
+================================================================
