@@ -65,6 +65,8 @@ const cmd = [
   '  pause',
   '  exit /b 1',
   ')',
+  'rem File verificato: toglie il marchio "scaricato da Internet" che fa comparire l\'avviso di SmartScreen',
+  'powershell -NoProfile -ExecutionPolicy Bypass -Command "Unblock-File -LiteralPath \'VibeVault.exe\'" >nul 2>&1',
   'echo.',
   'echo  OK: VibeVault.exe creato e verificato.',
   'echo.',

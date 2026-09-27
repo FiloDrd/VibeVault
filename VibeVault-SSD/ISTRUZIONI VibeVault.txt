@@ -32,9 +32,17 @@ mai i tuoi file originali.
 
  Nient'altro: le tue foto e le tue cartelle restano come sono.
 
- Avvisi di Windows al primo avvio:
-  - "PC protetto da Windows" (SmartScreen): l'app non è firmata
-    digitalmente. Clicca "Ulteriori informazioni" > "Esegui comunque".
+ Avvisi di Windows al primo avvio (l'app non è firmata digitalmente,
+ per questo Windows non la "conosce"; i file non sono pericolosi):
+  - "Windows ha protetto il PC" (SmartScreen): clicca "Ulteriori
+    informazioni" > "Esegui comunque". Per non vederlo più: tasto destro
+    su VibeVault.exe > Proprietà > spunta "Annulla blocco" > OK.
+    UNISCI-VibeVault.cmd lo fa già da solo dopo aver verificato il file.
+  - Su un PC nuovo con Windows 11 può comparire invece "Smart App
+    Control ha bloccato un'app": qui non esiste "Esegui comunque".
+    Si può solo disattivare Smart App Control (Sicurezza di Windows >
+    Controllo app e browser), ma è una protezione di tutto il PC:
+    valuta prima se ne vale la pena. La soluzione vera è firmare l'exe.
   - L'avvio richiede qualche secondo: l'exe unico si scompatta
     a ogni avvio in una cartella temporanea di Windows. È normale.
 
