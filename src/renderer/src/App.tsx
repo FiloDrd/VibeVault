@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { FolderOpen, FolderPlus, Images, RefreshCw, SearchX } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { FolderOpen, FolderSearch, Images, RefreshCw, SearchX } from 'lucide-react'
 import { useApp, isGridView } from '@/store/app'
 import { api, onEvent, bumpThumbVersion } from '@/lib/api'
 import { Sidebar } from '@/components/Sidebar'
@@ -11,6 +11,7 @@ import { Lightbox } from '@/components/Lightbox'
 import { Dialogs } from '@/components/Dialogs'
 import { CommandPalette } from '@/components/CommandPalette'
 import { Toasts } from '@/components/Toasts'
+import { FolderPicker } from '@/components/FolderPicker'
 import { Button, Empty, Spinner } from '@/components/ui'
 import { ReviewView } from '@/views/ReviewView'
 import { TrashView } from '@/views/TrashView'
@@ -57,7 +58,7 @@ function useBackendEvents() {
       }),
       onEvent('thumbs:status', (t) => useApp.setState({ thumbs: t })),
       onEvent('library:changed', (e) => { if (e.reason === 'scan' || e.reason === 'cache') { if (e.reason === 'cache') bumpThumbVersion(); softReload() } }),
-      onEvent('vault:changed', (v) => useApp.setState({ vault: v }))
+      onEvent('vault:changed', (v) => { void st().loadVault(v) })
     ]
     return () => { offs.forEach((o) => o()); clearTimeout(reloadTimer) }
   }, [])
@@ -148,28 +149,34 @@ function useShortcuts() {
   }, [])
 }
 
+/** La cartella è aperta ma (ancora) senza media. */
 function Welcome() {
   const vault = useApp((s) => s.vault)
   const scan = useApp((s) => s.scan)
-  const toast = useApp((s) => s.toast)
+  const openFolderDialog = useApp((s) => s.openFolderDialog)
   const scanning = scan && ['walking', 'indexing', 'reconciling'].includes(scan.phase)
   return (
     <div className="flex h-full items-center justify-center p-10 anim-fade">
       <div className="max-w-[520px] text-center">
         <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-[#8b93ff] via-[#b197fc] to-[#ff8fab] shadow-[0_8px_40px_rgba(139,147,255,0.35)]">
-          <Images size={34} className="text-white" />
+          {scanning ? <Spinner size={30} /> : <Images size={34} className="text-white" />}
         </div>
-        <h2 className="font-display text-[24px] font-semibold tracking-tight">Benvenuto in VibeVault</h2>
+        <h2 className="font-display text-[22px] font-semibold tracking-tight">{scanning ? 'Sto leggendo la cartella…' : 'Nessuna foto trovata qui'}</h2>
         <p className="mt-2 text-[13.5px] leading-relaxed text-dim">
-          Copia foto, video e GIF nella cartella <b className="text-fg">Library</b> del vault, poi avvia la scansione.
-          Tutto resta qui: niente cloud, niente account, nessun file originale modificato.
+          {scanning
+            ? <>Foto e video compaiono man mano che vengono trovati ({scan?.scanned ?? 0} file letti). Puoi già usare l'app.</>
+            : vault?.layout === 'legacy'
+              ? <>Copia foto, video e GIF nella cartella <b className="text-fg">Library</b> del vault, poi avvia la scansione.</>
+              : <>La cartella e le sue sottocartelle non contengono foto, video o GIF. Scegli un'altra cartella o scansiona di nuovo.</>}
         </p>
         <p className="mt-3 rounded-lg bg-elev-2 px-3 py-2 font-mono text-[11.5px] text-faint">{vault?.libraryDir}</p>
-        <div className="mt-5 flex justify-center gap-2">
-          <Button variant="soft" icon={<FolderOpen size={15} />} onClick={() => void api('vault.revealRoot')}>Apri cartella vault</Button>
-          <Button variant="soft" icon={<FolderPlus size={15} />} onClick={async () => { const r = await api('library.addScanFolderDialog'); if (!r.ok && r.message) toast({ text: r.message, tone: 'error' }) }}>Scegli cartella…</Button>
-          <Button variant="primary" icon={scanning ? <Spinner /> : <RefreshCw size={15} />} disabled={!!scanning} onClick={() => void api('library.scan')}>{scanning ? `Scansione… ${scan?.scanned ?? 0}` : 'Scansiona ora'}</Button>
-        </div>
+        {!scanning && (
+          <div className="mt-5 flex justify-center gap-2">
+            <Button variant="soft" icon={<FolderOpen size={15} />} onClick={() => void api('vault.revealRoot')}>Mostra cartella</Button>
+            <Button variant="soft" icon={<FolderSearch size={15} />} onClick={() => void openFolderDialog()}>Apri un'altra cartella…</Button>
+            <Button variant="primary" icon={<RefreshCw size={15} />} onClick={() => void api('library.scan')}>Scansiona di nuovo</Button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -202,6 +209,8 @@ function GridArea() {
 
 export default function App() {
   const view = useApp((s) => s.view)
+  const vault = useApp((s) => s.vault)
+  const [ready, setReady] = useState(false)
   useTheme()
   useBackendEvents()
   useShortcuts()
@@ -209,12 +218,23 @@ export default function App() {
   useEffect(() => {
     const st = useApp.getState()
     void (async () => {
-      const [settings, vault, scan, thumbs] = await Promise.all([api('settings.get'), api('vault.info'), api('library.scanStatus'), api('thumbs.status')])
-      useApp.setState({ settings, vault, scan, thumbs })
-      await Promise.all([st.reload(), st.refreshMeta()])
-      if (vault.rootChanged) st.toast({ text: `Vault aperto da un nuovo percorso (${vault.root}). Tutto a posto: i percorsi sono relativi.`, tone: 'info' })
+      const v = await api('vault.info')
+      await st.loadVault(v)
+      setReady(true)
+      if (v?.rootChanged) st.toast({ text: `Cartella aperta da un nuovo percorso (${v.root}). Tutto a posto: i percorsi sono relativi.`, tone: 'info' })
     })()
   }, [])
+
+  if (!ready) return <div className="flex h-full items-center justify-center text-dim"><Spinner size={22} /></div>
+  if (!vault) {
+    return (
+      <div className="flex h-full">
+        <FolderPicker />
+        <Dialogs />
+        <Toasts />
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-full">

@@ -80,7 +80,7 @@ export class AlbumRepo {
 
   list(): Album[] {
     return this.db
-      .prepare(`SELECT a.id, a.name, a.type, a.query, a.created_at createdAt,
+      .prepare(`SELECT a.id, a.name, a.type, a.query, a.created_at createdAt, a.source_folder sourceFolder,
           COALESCE(a.cover_media_id, (SELECT ai.media_id FROM album_items ai JOIN media m ON m.id = ai.media_id
             WHERE ai.album_id = a.id AND m.status = 'ok' ORDER BY ai.position LIMIT 1)) coverMediaId,
           (SELECT COUNT(*) FROM album_items ai JOIN media m ON m.id = ai.media_id WHERE ai.album_id = a.id AND m.status NOT IN ('trashed','missing')) count
@@ -89,7 +89,7 @@ export class AlbumRepo {
   }
 
   get(id: number): Album | undefined {
-    return this.db.prepare(`SELECT id, name, type, query, cover_media_id coverMediaId, created_at createdAt FROM albums WHERE id = ?`).get(id) as Album | undefined
+    return this.db.prepare(`SELECT id, name, type, query, cover_media_id coverMediaId, created_at createdAt, source_folder sourceFolder FROM albums WHERE id = ?`).get(id) as Album | undefined
   }
 
   create(name: string, id?: number): Album {
@@ -113,13 +113,16 @@ export class AlbumRepo {
     if (!album) return null
     const items = this.db.prepare(`SELECT media_id mediaId, position FROM album_items WHERE album_id = ?`).all(id) as { mediaId: number; position: number }[]
     this.db.prepare(`DELETE FROM albums WHERE id = ?`).run(id)
+    // un album automatico eliminato dall'utente non viene ricreato dalle scansioni successive
+    if (album.sourceFolder) this.db.prepare(`INSERT OR IGNORE INTO dismissed_folder_albums (source_folder) VALUES (?)`).run(album.sourceFolder)
     return { album, items }
   }
 
   restore(album: Album, items: { mediaId: number; position: number }[]): void {
     this.db.transaction(() => {
-      this.db.prepare(`INSERT OR IGNORE INTO albums (id, name, type, query, cover_media_id, created_at) VALUES (?, ?, ?, ?, ?, ?)`)
-        .run(album.id, album.name, album.type, album.query, album.coverMediaId, album.createdAt)
+      this.db.prepare(`INSERT OR IGNORE INTO albums (id, name, type, query, cover_media_id, created_at, source_folder) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+        .run(album.id, album.name, album.type, album.query, album.coverMediaId, album.createdAt, album.sourceFolder ?? null)
+      if (album.sourceFolder) this.db.prepare(`DELETE FROM dismissed_folder_albums WHERE source_folder = ?`).run(album.sourceFolder)
       const ins = this.db.prepare(`INSERT OR IGNORE INTO album_items (album_id, media_id, position) VALUES (?, ?, ?)`)
       for (const it of items) ins.run(album.id, it.mediaId, it.position)
     })()
@@ -150,6 +153,44 @@ export class AlbumRepo {
     return removed
   }
 
+  /** Cartelle degli album automatici (Takeout). */
+  folderAlbumSources(): string[] {
+    return (this.db.prepare(`SELECT source_folder f FROM albums WHERE source_folder IS NOT NULL`).all() as { f: string }[]).map((r) => r.f)
+  }
+
+  /**
+   * Crea (se mancano) gli album delle cartelle album di Google Takeout. Un album appena
+   * creato riceve tutte le foto della cartella; uno esistente solo quelle nuove (`newIds`):
+   * così le foto tolte a mano dall'utente non ricompaiono a ogni scansione.
+   */
+  syncFolderAlbums(found: { folder: string; title: string }[], newIds: Set<number>): number {
+    let created = 0
+    this.db.transaction(() => {
+      const exists = this.db.prepare(`SELECT id FROM albums WHERE source_folder = ?`)
+      const dismissed = this.db.prepare(`SELECT 1 FROM dismissed_folder_albums WHERE source_folder = ?`)
+      const ins = this.db.prepare(`INSERT INTO albums (name, type, created_at, source_folder) VALUES (?, 'manual', ?, ?)`)
+      const fresh = new Set<number>()
+      for (const a of found) {
+        if (exists.get(a.folder) || dismissed.get(a.folder)) continue
+        fresh.add(Number(ins.run(a.title, Date.now(), a.folder).lastInsertRowid))
+        created++
+      }
+      const albums = this.db.prepare(`SELECT id, source_folder f FROM albums WHERE source_folder IS NOT NULL`).all() as { id: number; f: string }[]
+      const rows = this.db.prepare(`SELECT id, COALESCE(shadow_of, id) mid FROM media WHERE folder_path_relative = ? AND status NOT IN ('trashed','missing') ORDER BY effective_date, id`)
+      const maxPos = this.db.prepare(`SELECT COALESCE(MAX(position), -1) p FROM album_items WHERE album_id = ?`)
+      const add = this.db.prepare(`INSERT OR IGNORE INTO album_items (album_id, media_id, position) VALUES (?, ?, ?)`)
+      for (const a of albums) {
+        const all = fresh.has(a.id)
+        let pos = (maxPos.get(a.id) as { p: number }).p + 1
+        for (const r of rows.all(a.f) as { id: number; mid: number }[]) {
+          if (!all && !newIds.has(r.id)) continue
+          if (add.run(a.id, r.mid, pos).changes) pos++
+        }
+      }
+    })()
+    return created
+  }
+
   restoreItems(albumId: number, items: { mediaId: number; position: number }[]): void {
     const ins = this.db.prepare(`INSERT OR IGNORE INTO album_items (album_id, media_id, position) VALUES (?, ?, ?)`)
     this.db.transaction(() => { for (const it of items) ins.run(albumId, it.mediaId, it.position) })()
@@ -157,11 +198,11 @@ export class AlbumRepo {
 }
 
 export class SettingsRepo {
-  constructor(private db: DB) {}
+  constructor(private db: DB, private defaults: AppSettings = DEFAULT_SETTINGS) {}
 
   getAll(): AppSettings {
     const rows = this.db.prepare(`SELECT key, value FROM settings`).all() as { key: string; value: string }[]
-    const out: Record<string, unknown> = { ...DEFAULT_SETTINGS }
+    const out: Record<string, unknown> = { ...this.defaults }
     for (const r of rows) {
       if (!(r.key in DEFAULT_SETTINGS)) continue
       try { out[r.key] = JSON.parse(r.value) } catch { /* valore non valido: default */ }

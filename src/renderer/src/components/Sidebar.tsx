@@ -1,13 +1,15 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import {
   Archive, BarChart3, Camera, ChevronRight, Clock, Copy, FileQuestion, Film, Folder, FolderPlus, Heart, Image, Images,
-  LayoutGrid, Monitor, Plus, Settings, Sparkles, Tag as TagIcon, Trash2, HardDrive, CalendarOff, Album as AlbumIcon
+  LayoutGrid, Monitor, Plus, Settings, Sparkles, Tag as TagIcon, Trash2, HardDrive, CalendarOff, Album as AlbumIcon,
+  Smartphone, MessageCircle, Share2, MapPin, RectangleVertical, Timer, Clapperboard, FileWarning, CalendarDays
 } from 'lucide-react'
 import type { FolderNode } from '@shared/types'
 import { useApp, type LibraryViewId, type View } from '@/store/app'
 import { api, thumbUrl } from '@/lib/api'
 import { formatCount } from '@/lib/format'
 import { DRAG_MIME } from './MediaGrid'
+import { FolderSwitcher } from './FolderPicker'
 import { cx, IconButton } from './ui'
 
 function sameView(a: View, b: View): boolean {
@@ -15,6 +17,7 @@ function sameView(a: View, b: View): boolean {
   if (a.kind === 'library' && b.kind === 'library') return a.id === b.id
   if ((a.kind === 'album' && b.kind === 'album') || (a.kind === 'tag' && b.kind === 'tag')) return a.id === b.id
   if (a.kind === 'folder' && b.kind === 'folder') return a.path === b.path
+  if (a.kind === 'year' && b.kind === 'year') return a.year === b.year
   return true
 }
 
@@ -84,10 +87,25 @@ const LIB: { id: LibraryViewId; label: string; icon: ReactNode }[] = [
 
 const ORG: { id: LibraryViewId; label: string; icon: ReactNode }[] = [
   { id: 'favorites', label: 'Preferiti', icon: <Heart size={16} /> },
-  { id: 'recent', label: 'Recenti', icon: <Clock size={16} /> },
-  { id: 'large', label: 'File grandi', icon: <HardDrive size={16} /> },
-  { id: 'nodate', label: 'Senza data', icon: <CalendarOff size={16} /> },
+  { id: 'recent', label: 'Aggiunti di recente', icon: <Clock size={16} /> },
   { id: 'archive', label: 'Archivio', icon: <Archive size={16} /> }
+]
+
+/** Viste automatiche: si riempiono da sole con i metadata letti dalla scansione. */
+const ORIGINS: { id: LibraryViewId; origin: string; label: string; icon: ReactNode }[] = [
+  { id: 'phone', origin: 'phone', label: 'Smartphone', icon: <Smartphone size={16} /> },
+  { id: 'camera', origin: 'camera', label: 'Fotocamera', icon: <Camera size={16} /> },
+  { id: 'whatsapp', origin: 'whatsapp', label: 'WhatsApp', icon: <MessageCircle size={16} /> },
+  { id: 'social', origin: 'social', label: 'Social e messaggi', icon: <Share2 size={16} /> }
+]
+
+const DISCOVER: { id: LibraryViewId; label: string; icon: ReactNode }[] = [
+  { id: 'gps', label: 'Con posizione', icon: <MapPin size={16} /> },
+  { id: 'vertical', label: 'Video verticali', icon: <RectangleVertical size={16} /> },
+  { id: 'short', label: 'Video brevi', icon: <Timer size={16} /> },
+  { id: 'long', label: 'Video lunghi', icon: <Clapperboard size={16} /> },
+  { id: 'large', label: 'File grandi', icon: <HardDrive size={16} /> },
+  { id: 'nodate', label: 'Senza data', icon: <CalendarOff size={16} /> }
 ]
 
 interface TreeNode { node: FolderNode; children: TreeNode[] }
@@ -140,6 +158,8 @@ function FolderTree({ nodes, depth }: { nodes: TreeNode[]; depth: number }) {
 }
 
 export function Sidebar() {
+  const vault = useApp((s) => s.vault)
+  const stats = useApp((s) => s.stats)
   const albums = useApp((s) => s.albums)
   const tags = useApp((s) => s.tags)
   const folders = useApp((s) => s.folders)
@@ -149,6 +169,8 @@ export function Sidebar() {
   const refreshMeta = useApp((s) => s.refreshMeta)
   const setView = useApp((s) => s.setView)
   const tree = useMemo(() => buildTree(folders), [folders])
+  const originCount = (o: string) => stats?.byOrigin.find((x) => x.origin === o)?.count ?? 0
+  const years = useMemo(() => (stats?.byYear ?? []).filter((y) => /^\d{4}$/.test(y.year)).sort((a, b) => Number(b.year) - Number(a.year)), [stats])
 
   const newAlbum = () => openDialog({
     type: 'prompt', title: 'Nuovo album', label: 'Nome album', placeholder: 'es. Estate 2024', confirmText: 'Crea',
@@ -160,10 +182,11 @@ export function Sidebar() {
     }
   })
 
+  const rootFolder = vault?.layout === 'legacy' ? 'Library' : ''
   const newFolder = () => openDialog({
-    type: 'prompt', title: 'Nuova cartella in Library', label: 'Nome cartella', confirmText: 'Crea',
+    type: 'prompt', title: `Nuova cartella in ${rootFolder || vault?.name || 'cartella'}`, label: 'Nome cartella', confirmText: 'Crea',
     onSubmit: async (name) => {
-      const r = await api('files.createFolder', 'Library', name)
+      const r = await api('files.createFolder', rootFolder, name)
       if (!r.ok) useApp.getState().toast({ text: r.message ?? 'Errore', tone: 'error' })
       await refreshMeta()
     }
@@ -177,10 +200,31 @@ export function Sidebar() {
         </div>
         <span className="font-display text-[15px] font-semibold tracking-tight">VibeVault</span>
       </div>
+      <FolderSwitcher />
 
       <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
         <Section title="Libreria">
           {LIB.map((l) => <Item key={l.id} icon={l.icon} label={l.label} view={{ kind: 'library', id: l.id }} />)}
+        </Section>
+
+        {ORIGINS.some((o) => originCount(o.origin) > 0) && (
+          <Section title="Provenienza" collapsible>
+            {ORIGINS.filter((o) => originCount(o.origin) > 0).map((o) => (
+              <Item key={o.id} icon={o.icon} label={o.label} count={originCount(o.origin)} view={{ kind: 'library', id: o.id }} />
+            ))}
+          </Section>
+        )}
+
+        {years.length > 0 && (
+          <Section title="Anni" collapsible>
+            {years.map((y) => <Item key={y.year} icon={<CalendarDays size={16} />} label={y.year} count={y.count} view={{ kind: 'year', year: Number(y.year) }} />)}
+          </Section>
+        )}
+
+        <Section title="Scopri" collapsible>
+          {DISCOVER.map((l) => (
+            <Item key={l.id} icon={l.icon} label={l.label} count={l.id === 'gps' ? stats?.withGps : l.id === 'nodate' ? stats?.noDate : undefined} view={{ kind: 'library', id: l.id }} />
+          ))}
         </Section>
 
         <Section title="Organizza">
@@ -235,7 +279,8 @@ export function Sidebar() {
         </Section>
 
         <Section title="Salute libreria" collapsible>
-          <Item icon={<FileQuestion size={16} />} label="File mancanti" view={{ kind: 'library', id: 'missing' }} />
+          <Item icon={<FileQuestion size={16} />} label="File mancanti" count={stats?.missing} view={{ kind: 'library', id: 'missing' }} />
+          <Item icon={<FileWarning size={16} />} label="File danneggiati" count={stats?.corrupt} view={{ kind: 'library', id: 'corrupt' }} />
         </Section>
       </nav>
 

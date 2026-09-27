@@ -1,7 +1,7 @@
 {
   "name": "vibevault",
   "productName": "VibeVault",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Media manager local-first e portatile per foto, video e GIF su SSD",
   "private": true,
   "main": "./out/main/index.js",
@@ -16,6 +16,7 @@
     "dist:dir": "electron-vite build && electron-builder --dir",
     "test:only": "vitest run",
     "dist:ssd": "electron-vite build && electron-builder --dir && node scripts/make-ssd-bundle.mjs",
+    "dist:parts": "npm run dist:portable && node scripts/make-exe-parts.mjs",
     "setup": "node scripts/setup.mjs"
   },
   "dependencies": {

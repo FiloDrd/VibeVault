@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Database, FolderOpen, FolderPlus, HardDrive, History, RefreshCw, RotateCcw, ScrollText, Trash, X, Eraser } from 'lucide-react'
+import { Database, FolderOpen, FolderPlus, FolderSearch, HardDrive, History, RefreshCw, RotateCcw, ScrollText, Trash, X, Eraser } from 'lucide-react'
 import type { OperationRecord, ThemeName } from '@shared/types'
 import { useApp } from '@/store/app'
 import { api, bumpThumbVersion } from '@/lib/api'
@@ -21,7 +21,7 @@ export function SettingsView() {
   const update = useApp((s) => s.updateSettings)
   const vault = useApp((s) => s.vault)
   const toast = useApp((s) => s.toast)
-  const openDialog = useApp((s) => s.openDialog)
+  const openFolderDialog = useApp((s) => s.openFolderDialog)
   const undo = useApp((s) => s.undo)
   const reload = useApp((s) => s.reload)
   const [ops, setOps] = useState<OperationRecord[]>([])
@@ -59,38 +59,40 @@ export function SettingsView() {
           <Toggle checked={settings.hideSensitiveThumbs} onChange={(v) => void update({ hideSensitiveThumbs: v })} label="Sfoca le miniature" hint="Utile quando mostri lo schermo ad altri. Le immagini restano visibili aprendole." />
         </Section>
 
-        <Section title="Vault portatile" desc="Tutto (database, miniature, cestino, log) vive dentro questa cartella: spostala su qualsiasi SSD o PC e continua a funzionare.">
+        <Section title="Cartella foto" desc={vault?.layout === 'legacy'
+          ? 'Vault v0.1: i media stanno in Library/, i dati in VaultData/, Cache/, Trash/ e Logs/.'
+          : 'VibeVault legge questa cartella e tutte le sue sottocartelle. I file restano dove sono: indice, miniature, cestino e log stanno nella cartella nascosta .vibevault qui dentro, e viaggiano con il disco.'}>
           <div className="rounded-lg bg-elev-2 p-3 font-mono text-[12px] text-dim">
             <div className="flex items-center gap-2"><HardDrive size={14} className="text-accent" />{vault?.root}</div>
-            <div className="mt-1.5 text-[11.5px] text-faint">Database: {vault?.dbPath} · {vault?.portable ? 'modalità portatile' : 'modalità sviluppo'} · v{vault?.version}</div>
+            <div className="mt-1.5 text-[11.5px] text-faint">Indice: {vault?.dbPath} · {vault?.portable ? 'app portatile' : 'modalità sviluppo'} · v{vault?.version}</div>
             <div className="mt-0.5 text-[11.5px] text-faint">FFmpeg: {vault?.tools.ffmpeg ? 'trovato' : 'NON trovato (video senza miniature)'} · ffprobe: {vault?.tools.ffprobe ? 'trovato' : 'NON trovato'}</div>
-            {vault?.rootChanged && <div className="mt-1.5 text-[11.5px] text-warn">Root cambiata da {vault.rootChanged.from}: nessun problema, i percorsi sono relativi.</div>}
+            {vault?.rootChanged && <div className="mt-1.5 text-[11.5px] text-warn">Percorso cambiato da {vault.rootChanged.from}: nessun problema, i percorsi sono relativi.</div>}
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" icon={<FolderOpen size={14} />} onClick={() => void api('vault.revealRoot')}>Apri cartella vault</Button>
-            <Button size="sm" icon={<HardDrive size={14} />} onClick={() => openDialog({ type: 'confirm', title: 'Cambiare vault?', message: 'Scegli un\'altra cartella come vault (verrà creata la struttura se vuota). L\'app si riavvierà.', confirmText: 'Scegli cartella', onConfirm: async () => { await api('vault.openRootDialog') } })}>Cambia vault…</Button>
-          </div>
-        </Section>
-
-        <Section title="Cartelle indicizzate" desc="Percorsi relativi alla root del vault. Devono stare dentro il vault per restare portatili.">
-          <div className="space-y-1">
-            {settings.scanFolders.map((f) => (
-              <div key={f} className="flex items-center justify-between rounded-lg bg-elev-2 px-3 py-2 text-[12.5px]">
-                <span className="font-mono">{f || '(intero vault)'}</span>
-                <button
-                  className="text-faint hover:text-danger"
-                  title="Smetti di indicizzare (i file non vengono toccati)"
-                  onClick={() => void update({ scanFolders: settings.scanFolders.filter((x) => x !== f) })}
-                  disabled={settings.scanFolders.length === 1}
-                ><X size={14} /></button>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" icon={<FolderPlus size={14} />} onClick={() => void addFolder()}>Aggiungi cartella…</Button>
+            <Button size="sm" icon={<FolderOpen size={14} />} onClick={() => void api('vault.revealRoot')}>Mostra in Esplora risorse</Button>
+            <Button size="sm" icon={<FolderSearch size={14} />} onClick={() => void openFolderDialog()}>Apri un'altra cartella…</Button>
             <Button size="sm" icon={<RefreshCw size={14} />} onClick={() => void api('library.scan')}>Scansiona ora</Button>
-            <Button size="sm" variant="ghost" icon={<RefreshCw size={14} />} onClick={() => void api('library.rebuildIndex')}>Ricostruisci indice completo</Button>
+            <Button size="sm" variant="ghost" icon={<RefreshCw size={14} />} onClick={() => void api('library.rebuildIndex')}>Rileggi tutti i file</Button>
           </div>
+          {vault?.layout === 'legacy' && (
+            <div className="mt-4 border-t border-line pt-3">
+              <p className="mb-2 text-[12px] text-faint">Cartelle indicizzate (relative al vault):</p>
+              <div className="space-y-1">
+                {settings.scanFolders.map((f) => (
+                  <div key={f} className="flex items-center justify-between rounded-lg bg-elev-2 px-3 py-2 text-[12.5px]">
+                    <span className="font-mono">{f || '(intero vault)'}</span>
+                    <button
+                      className="text-faint hover:text-danger"
+                      title="Smetti di indicizzare (i file non vengono toccati)"
+                      onClick={() => void update({ scanFolders: settings.scanFolders.filter((x) => x !== f) })}
+                      disabled={settings.scanFolders.length === 1}
+                    ><X size={14} /></button>
+                  </div>
+                ))}
+              </div>
+              <Button className="mt-2" size="sm" icon={<FolderPlus size={14} />} onClick={() => void addFolder()}>Aggiungi cartella del vault…</Button>
+            </div>
+          )}
           <div className="mt-3 border-t border-line pt-2">
             <Toggle checked={settings.includeAudio} onChange={(v) => void update({ includeAudio: v })} label="Indicizza anche file audio" />
             <label className="flex items-center justify-between py-2.5 text-[13px]">
@@ -104,7 +106,7 @@ export function SettingsView() {
         </Section>
 
         <Section title="Sicurezza e manutenzione">
-          <Toggle checked={settings.backupBeforeBatch} onChange={(v) => void update({ backupBeforeBatch: v })} label="Backup automatico del database prima delle operazioni su 50+ file" hint="I backup vanno in VaultData/backups (ultimi 10)." />
+          <Toggle checked={settings.backupBeforeBatch} onChange={(v) => void update({ backupBeforeBatch: v })} label="Backup automatico dell'indice prima delle operazioni su 50+ file" hint={`I backup vanno in ${vault?.layout === 'legacy' ? 'VaultData/backups' : '.vibevault/backups'} (ultimi 10).`} />
           <div className="mt-2 flex flex-wrap gap-2">
             <Button size="sm" icon={<Database size={14} />} onClick={async () => { const r = await api('maintenance.backupDb'); toast({ text: r.ok ? `Backup creato: ${r.path}` : r.message ?? 'Errore', tone: r.ok ? 'ok' : 'error' }) }}>Backup database</Button>
             <Button size="sm" icon={<Eraser size={14} />} onClick={async () => { const r = await api('maintenance.clearCache'); bumpThumbVersion(); toast({ text: `Cache svuotata (${r.removed} file). Le miniature verranno rigenerate.`, tone: 'ok' }); void reload() }}>Svuota cache miniature</Button>

@@ -1,34 +1,36 @@
 ================================================================
-  VIBEVAULT — Istruzioni d'uso (versione portatile 0.1)
+  VIBEVAULT — Istruzioni d'uso (versione portatile 0.2)
 ================================================================
 
-VibeVault è un'app per rivedere, organizzare e pulire foto, video
-e GIF direttamente dall'SSD. Funziona offline, senza account e senza
-cloud, e non modifica mai i tuoi file originali. Tutto (database,
-miniature, cestino) resta sull'SSD.
+VibeVault è un'app per sfogliare, rivedere e organizzare foto, video
+e GIF direttamente dalla cartella in cui li tieni già (per esempio sul
+tuo SSD). Funziona offline, senza account e senza cloud, e non modifica
+mai i tuoi file originali.
 
 
 ----------------------------------------------------------------
- 1. PREPARARE L'SSD (una volta sola)
+ 1. PRIMO AVVIO
 ----------------------------------------------------------------
 
- 1) Crea sull'SSD una cartella dedicata, per esempio:  E:\VibeVault\
- 2) Copia dentro  VibeVault.exe  e questo file di istruzioni.
- 3) Avvia VibeVault.exe con un doppio clic.
+ 1) Ricomponi l'exe con UNISCI-VibeVault.cmd (se hai le parti .partNN).
+ 2) Copia VibeVault.exe dove preferisci: sul PC o sull'SSD, per
+    esempio accanto alla cartella delle foto (E:\VibeVault.exe).
+ 3) Avvialo con un doppio clic e premi "Scegli la cartella delle foto".
+    Scegli la cartella che contiene tutte le tue foto (es. E:\Foto).
 
- Al primo avvio l'app crea accanto all'exe queste cartelle:
+ VibeVault legge la cartella e TUTTE le sottocartelle e mostra ogni
+ foto e video in un'unica timeline ordinata per data, come se fossero
+ in una sola cartella. Non serve copiare o spostare nulla.
 
-   E:\VibeVault\
-     VibeVault.exe
-     Library\      <- METTI QUI FOTO, VIDEO E GIF (anche in sottocartelle)
-     VaultData\    database, backup automatici, impostazioni
-     Cache\        miniature (si possono cancellare, si rigenerano)
-     Trash\        cestino interno dell'app
-     Exports\      file esportati
-     Logs\         registro delle operazioni
+ Cosa scrive l'app sul disco:
 
- IMPORTANTE: non mettere l'exe nella radice dell'SSD (E:\): creerebbe
- le cartelle lì in mezzo ai tuoi altri file. Usa una cartella dedicata.
+   E:\Foto\.vibevault\      cartella nascosta con indice, miniature,
+                            cestino interno, backup e log. Viaggia con
+                            l'SSD insieme alle foto.
+   VibeVault-dati\          accanto all'exe: elenco delle cartelle recenti
+                            e profilo dell'app.
+
+ Nient'altro: le tue foto e le tue cartelle restano come sono.
 
  Avvisi di Windows al primo avvio:
   - "PC protetto da Windows" (SmartScreen): l'app non è firmata
@@ -38,16 +40,45 @@ miniature, cestino) resta sull'SSD.
 
 
 ----------------------------------------------------------------
- 2. AGGIUNGERE I MEDIA
+ 2. INDICIZZAZIONE E CLASSIFICAZIONE AUTOMATICA
 ----------------------------------------------------------------
 
- - Copia foto, video e GIF dentro  Library\  con Esplora risorse,
-   organizzati come preferisci (es. Library\Foto\2024\Vacanze).
- - In VibeVault premi "Scansiona ora" (o l'icona ↻ in alto a destra).
-   All'avvio l'app fa comunque una scansione automatica.
- - La scansione è incrementale: rilegge solo i file nuovi o cambiati.
+ - Alla prima apertura l'app legge tutti i file (può richiedere qualche
+   minuto con decine di migliaia di foto): le foto compaiono man mano.
+ - Agli avvii successivi riapre l'ultima cartella e rilegge solo i file
+   nuovi o cambiati. Premi l'icona ↻ in alto a destra per una scansione.
+ - La DATA di ogni foto viene presa, in quest'ordine, da:
+     1. il file JSON di Google Takeout accanto alla foto (vedi sotto)
+     2. i dati EXIF della fotocamera o del telefono
+     3. il nome del file (IMG_20240315_101010.jpg, IMG-20240315-WA0001.jpg,
+        Screenshot_2024-03-15..., WhatsApp Image 2024-03-15 at ...)
+     4. la data del file (ultima risorsa)
+ - Nella barra a sinistra le foto sono già divise, senza fare nulla:
+     Libreria     Foto, Video, GIF, Raw, Screenshot
+     Provenienza  Smartphone, Fotocamera, WhatsApp, Social e messaggi
+     Anni         un elemento per ogni anno, con il numero di foto
+     Scopri       Con posizione, Video verticali/brevi/lunghi,
+                  File grandi, Senza data
+     Cartelle     le tue sottocartelle reali, se vuoi filtrare
  - Se sposti o rinomini file con Esplora risorse, alla scansione
    successiva VibeVault li riconosce e mantiene tag, album e voti.
+
+ GOOGLE TAKEOUT (esportazione di Google Foto)
+ Takeout mette accanto a ogni foto un file .json con la data vera di
+ scatto e dà a tutti i file la data dell'esportazione. VibeVault legge
+ quei JSON (anche con nomi troncati, "(1)" e "-edited") e ne ricava:
+ data di scatto, posizione GPS, descrizione (nelle note), preferito e
+ persone riconosciute (come tag). Inoltre:
+  - le cartelle degli album di Takeout diventano album in VibeVault;
+  - le copie doppie (stessa foto nella cartella dell'anno e in quella
+    dell'album) e gli originali delle foto modificate ("-edited")
+    vengono nascosti nella timeline, così non vedi doppioni. Restano
+    visibili aprendo la loro cartella e nel pannello info ("Altre copie").
+  - Se sposti o rinomini una foto dall'app, il suo JSON la segue.
+
+ Cambiare cartella: clicca il nome della cartella in alto a sinistra.
+ Trovi le cartelle recenti e "Apri un'altra cartella…". Ogni cartella
+ ha il suo indice, i suoi album e i suoi tag.
 
  Formati: JPG, PNG, WebP, GIF, AVIF, BMP, TIFF, HEIC*, RAW* (DNG, CR2,
  CR3, NEF, ARW, RAF, ORF, RW2...), MP4, MOV, MKV, WebM, AVI e altri.
@@ -58,10 +89,10 @@ miniature, cestino) resta sull'SSD.
  3. L'INTERFACCIA
 ----------------------------------------------------------------
 
- - Sinistra: Libreria (Tutti, Foto, Video, GIF, Raw, Screenshot),
-   Organizza (Review, Duplicati, Preferiti, Recenti, File grandi,
-   Senza data, Archivio), Album, Tag, Cartelle, Cestino, Statistiche,
-   Impostazioni.
+ - Sinistra: la cartella aperta (clic per cambiarla), Libreria,
+   Provenienza, Anni, Scopri, Organizza (Review, Duplicati, Preferiti,
+   Aggiunti di recente, Archivio), Album, Tag, Cartelle, Cestino,
+   Statistiche, Impostazioni.
  - Centro: la timeline, raggruppata per giorno come Google Foto.
  - Destra: il pannello info dell'elemento selezionato (tasto I):
    dettagli, voto, tag, album, note, posizione GPS, percorso.
@@ -109,7 +140,8 @@ miniature, cestino) resta sull'SSD.
 
  - Nessun file viene mai sovrascritto. Se in una cartella esiste già
    un file con lo stesso nome, VibeVault usa "nome (1).jpg".
- - ELIMINARE non cancella: sposta nel Cestino interno (cartella Trash\).
+ - ELIMINARE non cancella: sposta nel Cestino interno dell'app
+   (cartella nascosta .vibevault\trash dentro la cartella foto).
    Dal Cestino puoi ripristinare in qualsiasi momento.
  - L'unica cancellazione definitiva è "Svuota cestino", che chiede due
    conferme (la seconda richiede di scrivere ELIMINA).
@@ -119,12 +151,12 @@ miniature, cestino) resta sull'SSD.
    dopo ogni azione. La cronologia completa, con il tasto Annulla per
    ogni operazione, è in Impostazioni > Cronologia operazioni.
  - Prima delle operazioni su 50 o più file viene fatto un backup
-   automatico del database (VaultData\backups\, ultimi 10).
+   automatico dell'indice (.vibevault\backups\, ultimi 10).
  - Nessun dato esce dal computer: l'app non usa internet.
 
- NON cancellare a mano le cartelle VaultData\ o Trash\: perderesti tag,
- album, voti e i file nel cestino. Cache\ invece si può svuotare
- (anche da Impostazioni > Svuota cache miniature).
+ NON cancellare a mano la cartella nascosta .vibevault\: perderesti tag,
+ album, voti e i file nel cestino (le foto restano). Le miniature si
+ possono rigenerare da Impostazioni > Svuota cache miniature.
 
 
 ----------------------------------------------------------------
@@ -186,12 +218,14 @@ miniature, cestino) resta sull'SSD.
  9. USARE L'SSD SU UN ALTRO PC
 ----------------------------------------------------------------
 
- Collega l'SSD e avvia VibeVault.exe dalla sua cartella. Non importa
- se la lettera dell'unità cambia (E:, F:, ...): l'app usa percorsi
- relativi e ritrova tutto. Non serve installare nulla.
+ Collega l'SSD, avvia VibeVault.exe e scegli di nuovo la cartella foto
+ (o riaprila dalle recenti, se l'exe sta sullo stesso SSD). Non importa
+ se la lettera dell'unità cambia (E:, F:, ...): i percorsi sono relativi
+ e indice, miniature, album e tag sono dentro .vibevault\.
+ Non serve installare nulla.
 
- Per fare una copia di sicurezza completa basta copiare l'intera
- cartella VibeVault\ (con l'app chiusa).
+ Per una copia di sicurezza completa basta copiare la cartella foto
+ compresa la cartella nascosta .vibevault\ (con l'app chiusa).
 
 
 ----------------------------------------------------------------
@@ -202,17 +236,26 @@ miniature, cestino) resta sull'SSD.
    Usa il pulsante "Apri nel player di sistema".
  - Miniature mancanti o sbagliate: Impostazioni > Svuota cache
    miniature (vengono rigenerate).
+ - Foto con la data sbagliata: controlla nel pannello info da dove
+   arriva la data ("da Google Foto", "dal nome del file", "data del
+   file"). La vista "Senza data" mostra le foto senza data affidabile.
+ - "Non posso scrivere in questa cartella": l'app deve poter creare la
+   cartella nascosta .vibevault\ (disco protetto da scrittura o share
+   di rete in sola lettura).
  - Tanti file "mancanti" dopo aver riorganizzato le cartelle a mano:
    lancia una nuova scansione; i file spostati vengono ritrovati.
- - L'antivirus rallenta la scansione: aggiungi la cartella VibeVault\
-   dell'SSD alle eccezioni.
- - Il database risulta danneggiato: all'avvio l'app lo mette da parte
+ - L'antivirus rallenta la scansione: aggiungi la cartella foto alle
+   eccezioni.
+ - L'indice risulta danneggiato: all'avvio l'app lo mette da parte
    (non lo cancella), ne crea uno nuovo e basta una scansione per
-   ritrovare i file. I backup sono in VaultData\backups\.
+   ritrovare i file. I backup sono in .vibevault\backups\.
+ - Il vecchio vault della versione 0.1 (con Library\ e VaultData\):
+   aprilo con "Apri un'altra cartella…" scegliendo la cartella del vault.
+   Viene riconosciuto e funziona come prima.
  - Chiudi sempre VibeVault prima di scollegare l'SSD.
 
 
 ----------------------------------------------------------------
- Cosa manca in questa versione 0.1: editor foto/video, ottimizzatore
- GIF e regole di organizzazione automatica (in arrivo).
+ Cosa manca in questa versione 0.2: editor foto/video, ottimizzatore
+ GIF e regole di organizzazione con spostamento dei file (in arrivo).
 ================================================================

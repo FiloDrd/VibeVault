@@ -2,6 +2,7 @@ import type { DB } from './database'
 import type {
   ColorLabel, DuplicateGroup, Flag, FolderNode, GridItem, LibraryStats, MediaDetails, MediaKind, MediaQuery, MediaStatus
 } from '@shared/types'
+import { editedOriginalName, type Origin } from '@shared/formats'
 
 /** Record prodotto dallo scanner worker per ogni file. */
 export interface ScannedRecord {
@@ -27,7 +28,18 @@ export interface ScannedRecord {
   isScreenshot: boolean
   status: MediaStatus
   error: string | null
+  /** data di scatto dal JSON di Google Takeout */
+  takeoutDate: number | null
+  /** data ricavata dal nome del file (IMG_20240315_…, WhatsApp, screenshot…) */
+  nameDate: number | null
+  origin: Origin
+  /** dati del JSON di Takeout applicati solo al primo inserimento (poi decide l'utente) */
+  takeout: { description: string | null; favorited: boolean; people: string[] } | null
 }
+
+export type DateSource = 'takeout' | 'exif' | 'filename' | 'file' | 'none'
+/** Fonti che danno la data vera di scatto (le altre sono solo la data del file). */
+export const REAL_DATE_SOURCES = `('takeout','exif','filename')`
 
 export interface UpsertStats {
   added: number[]
@@ -38,8 +50,11 @@ export interface UpsertStats {
 const GRID_COLS = `m.id AS id, m.kind AS k, m.effective_date AS t, COALESCE(m.width,0) AS w, COALESCE(m.height,0) AS h,
   m.favorite AS fav, m.flag AS fl, m.rating AS r, m.duration_ms AS d, m.file_name AS n, m.status AS st`
 
-export function effectiveDate(r: Pick<ScannedRecord, 'exifDate' | 'birthtime' | 'mtime'>): { date: number; source: 'exif' | 'file' | 'none' } {
+/** Ordine: JSON di Takeout → EXIF → nome del file → data del file. */
+export function effectiveDate(r: Pick<ScannedRecord, 'exifDate' | 'birthtime' | 'mtime'> & Partial<Pick<ScannedRecord, 'takeoutDate' | 'nameDate'>>): { date: number; source: DateSource } {
+  if (r.takeoutDate && r.takeoutDate > 0) return { date: r.takeoutDate, source: 'takeout' }
   if (r.exifDate && r.exifDate > 0) return { date: r.exifDate, source: 'exif' }
+  if (r.nameDate && r.nameDate > 0) return { date: r.nameDate, source: 'filename' }
   const cands = [r.birthtime, r.mtime].filter((x): x is number => typeof x === 'number' && x > 0)
   if (cands.length) return { date: Math.min(...cands), source: 'file' }
   return { date: 0, source: 'none' }
@@ -71,19 +86,25 @@ export class MediaRepo {
     const insert = this.db.prepare(`INSERT INTO media (
       file_path_relative, folder_path_relative, file_name, extension, mime_type, kind, size_bytes, created_at, modified_at,
       exif_date, effective_date, date_source, width, height, duration_ms, orientation, camera_make, camera_model,
-      gps_lat, gps_lon, hash_quick, status, is_screenshot, added_at, last_seen_scan, error, thumb_state
+      gps_lat, gps_lon, hash_quick, status, is_screenshot, added_at, last_seen_scan, error, thumb_state, origin, notes, favorite
     ) VALUES (
       @rel, @folder, @name, @ext, @mime, @kind, @size, @birthtime, @mtime,
       @exifDate, @effDate, @dateSource, @width, @height, @durationMs, @orientation, @make, @model,
-      @lat, @lon, @hashQuick, @status, @isScreenshot, @now, @scanId, @error, @thumbState
+      @lat, @lon, @hashQuick, @status, @isScreenshot, @now, @scanId, @error, @thumbState, @origin, @notesInit, @favInit
     )`)
     const update = this.db.prepare(`UPDATE media SET
       folder_path_relative=@folder, file_name=@name, extension=@ext, mime_type=@mime, kind=@kind, size_bytes=@size,
       created_at=@birthtime, modified_at=@mtime, exif_date=@exifDate, effective_date=@effDate, date_source=@dateSource,
       width=@width, height=@height, duration_ms=@durationMs, orientation=@orientation, camera_make=@make,
-      camera_model=@model, gps_lat=@lat, gps_lon=@lon, hash_quick=@hashQuick, hash_sha256=NULL, status=@status,
-      is_screenshot=@isScreenshot, last_seen_scan=@scanId, error=@error, thumb_state=@thumbState
+      camera_model=@model, gps_lat=@lat, gps_lon=@lon, hash_quick=@hashQuick,
+      hash_sha256 = CASE WHEN size_bytes = @size AND hash_quick IS @hashQuick THEN hash_sha256 ELSE NULL END,
+      status=@status, is_screenshot=@isScreenshot, last_seen_scan=@scanId, error=@error, origin=@origin,
+      notes = CASE WHEN notes = '' THEN @notesInit ELSE notes END,
+      thumb_state = CASE WHEN @thumbState = 'pending' AND thumb_state = 'done' AND size_bytes = @size AND hash_quick IS @hashQuick THEN thumb_state ELSE @thumbState END
       WHERE id=@id`)
+    const tagFind = this.db.prepare(`SELECT id FROM tags WHERE name = ? COLLATE NOCASE`)
+    const tagIns = this.db.prepare(`INSERT INTO tags (name) VALUES (?)`)
+    const mtIns = this.db.prepare(`INSERT OR IGNORE INTO media_tags (media_id, tag_id) VALUES (?, ?)`)
     const touch = this.db.prepare(`UPDATE media SET last_seen_scan=?, status = CASE WHEN status='missing' THEN 'ok' ELSE status END WHERE id=?`)
 
     const stats: UpsertStats = { added: [], updated: 0, unchanged: 0 }
@@ -98,12 +119,22 @@ export class MediaRepo {
           dateSource: eff.source,
           now,
           scanId,
-          thumbState: r.status === 'ok' ? 'pending' : 'failed'
+          thumbState: r.status === 'ok' ? 'pending' : 'failed',
+          origin: r.origin ?? 'unknown',
+          notesInit: r.takeout?.description ?? '',
+          favInit: r.takeout?.favorited ? 1 : 0
         }
+        delete (params as Partial<typeof params>).takeout
         const ex = find.get(r.rel) as { id: number; s: number; m: number | null } | undefined
         if (!ex) {
           const info = insert.run(params)
-          stats.added.push(Number(info.lastInsertRowid))
+          const id = Number(info.lastInsertRowid)
+          stats.added.push(id)
+          // persone riconosciute da Google Foto → tag (solo al primo inserimento)
+          for (const person of r.takeout?.people ?? []) {
+            const t = tagFind.get(person) as { id: number } | undefined
+            mtIns.run(id, t ? t.id : Number(tagIns.run(person).lastInsertRowid))
+          }
         } else if (ex.s === r.size && (ex.m ?? 0) === r.mtime) {
           touch.run(scanId, ex.id)
           stats.unchanged++
@@ -228,6 +259,10 @@ export class MediaRepo {
     if (q.trashed) where.push(`m.status = 'trashed'`)
     else if (q.missing) where.push(`m.status = 'missing'`)
     else where.push(`m.status NOT IN ('trashed','missing')`)
+    if (q.corrupt) where.push(`m.status = 'corrupt'`)
+    // copie nascoste (originale di una foto "-edited", copia nella cartella di un album Takeout):
+    // restano visibili solo aprendo la loro cartella
+    if ((q.folder === undefined || q.folder === null) && !q.albumId && !q.trashed && !q.missing) where.push(`m.shadow_of IS NULL`)
 
     if (q.archived === true) where.push(`m.archived = 1`)
     else if (!q.trashed && !q.missing && q.archived !== undefined) where.push(`m.archived = 0`)
@@ -243,7 +278,11 @@ export class MediaRepo {
     }
     if (q.minRating) { where.push(`m.rating >= ?`); params.push(q.minRating) }
     if (q.colorLabel && q.colorLabel !== 'none') { where.push(`m.color_label = ?`); params.push(q.colorLabel) }
-    if (q.noDate) where.push(`m.date_source != 'exif'`)
+    if (q.noDate) where.push(`m.date_source NOT IN ${REAL_DATE_SOURCES}`)
+    if (q.origin) { where.push(`m.origin = ?`); params.push(q.origin) }
+    if (q.hasGps) where.push(`m.gps_lat IS NOT NULL`)
+    if (q.durationMin !== undefined) { where.push(`m.duration_ms >= ?`); params.push(q.durationMin) }
+    if (q.durationMax !== undefined) { where.push(`m.duration_ms > 0 AND m.duration_ms <= ?`); params.push(q.durationMax) }
     if (q.largeFiles) { where.push(`m.size_bytes >= ?`); params.push(opts.largeThresholdBytes) }
     if (q.screenshots) where.push(`m.is_screenshot = 1`)
     if (q.orientation === 'portrait') where.push(`m.height > m.width`)
@@ -295,6 +334,9 @@ export class MediaRepo {
       .all(id) as MediaDetails['albums']
     let absolutePath = ''
     try { absolutePath = toAbs(r.file_path_relative) } catch { absolutePath = '' }
+    const copies = this.db
+      .prepare(`SELECT id, file_name fileName, folder_path_relative folder FROM media WHERE shadow_of = ? AND status NOT IN ('trashed','missing') ORDER BY id`)
+      .all(id) as MediaDetails['copies']
     return {
       id: r.id,
       filePathRelative: r.file_path_relative,
@@ -329,7 +371,9 @@ export class MediaRepo {
       status: r.status,
       tags,
       albums,
-      absolutePath
+      absolutePath,
+      origin: r.origin ?? 'unknown',
+      copies
     }
   }
 
@@ -462,12 +506,13 @@ export class MediaRepo {
   }
 
   stats(): Omit<LibraryStats, 'thumbsPending'> {
-    const base = `status NOT IN ('trashed','missing')`
+    const base = `status NOT IN ('trashed','missing') AND shadow_of IS NULL`
     const one = <T>(sql: string, ...p: unknown[]) => this.db.prepare(sql).get(...p) as T
     const tot = one<{ c: number; b: number | null }>(`SELECT COUNT(*) c, SUM(size_bytes) b FROM media WHERE ${base}`)
     const byKind = this.db.prepare(`SELECT kind, COUNT(*) count, SUM(size_bytes) bytes FROM media WHERE ${base} GROUP BY kind ORDER BY count DESC`).all() as LibraryStats['byKind']
-    const byYear = this.db.prepare(`SELECT CASE WHEN effective_date > 0 THEN strftime('%Y', effective_date/1000, 'unixepoch') ELSE '—' END year, COUNT(*) count FROM media WHERE ${base} GROUP BY year ORDER BY year`).all() as LibraryStats['byYear']
+    const byYear = this.db.prepare(`SELECT CASE WHEN effective_date > 0 THEN strftime('%Y', effective_date/1000, 'unixepoch', 'localtime') ELSE '—' END year, COUNT(*) count FROM media WHERE ${base} GROUP BY year ORDER BY year`).all() as LibraryStats['byYear']
     const byExt = this.db.prepare(`SELECT extension ext, COUNT(*) count, SUM(size_bytes) bytes FROM media WHERE ${base} GROUP BY extension ORDER BY count DESC LIMIT 20`).all() as LibraryStats['byExt']
+    const byOrigin = this.db.prepare(`SELECT origin, COUNT(*) count FROM media WHERE ${base} GROUP BY origin ORDER BY count DESC`).all() as LibraryStats['byOrigin']
     const flagsRows = this.db.prepare(`SELECT flag, COUNT(*) c FROM media WHERE ${base} GROUP BY flag`).all() as { flag: Flag; c: number }[]
     const flags: Record<Flag, number> = { none: 0, keep: 0, maybe: 0, trash: 0 }
     for (const f of flagsRows) flags[f.flag] = f.c
@@ -477,13 +522,56 @@ export class MediaRepo {
       byKind,
       byYear,
       byExt,
-      noDate: one<{ c: number }>(`SELECT COUNT(*) c FROM media WHERE ${base} AND date_source != 'exif'`).c,
+      byOrigin,
+      noDate: one<{ c: number }>(`SELECT COUNT(*) c FROM media WHERE ${base} AND date_source NOT IN ${REAL_DATE_SOURCES}`).c,
+      withGps: one<{ c: number }>(`SELECT COUNT(*) c FROM media WHERE ${base} AND gps_lat IS NOT NULL`).c,
       missing: one<{ c: number }>(`SELECT COUNT(*) c FROM media WHERE status = 'missing'`).c,
       corrupt: one<{ c: number }>(`SELECT COUNT(*) c FROM media WHERE status = 'corrupt'`).c,
       trashed: one<{ c: number }>(`SELECT COUNT(*) c FROM media WHERE status = 'trashed'`).c,
       favorites: one<{ c: number }>(`SELECT COUNT(*) c FROM media WHERE ${base} AND favorite = 1`).c,
       flags
     }
+  }
+
+  /**
+   * Ricalcola le copie da nascondere nella timeline (dopo ogni scansione):
+   *   - originale di una foto modificata da Google Foto ("IMG_1-edited.jpg" nasconde "IMG_1.jpg")
+   *   - copia di una foto dentro la cartella di un album Takeout, identica (dimensione + hash)
+   *     a una copia fuori dagli album (di solito in "Photos from 2019")
+   */
+  resolveShadows(albumFolders: string[]): number {
+    const albums = new Set(albumFolders)
+    let n = 0
+    this.db.transaction(() => {
+      this.db.prepare(`UPDATE media SET shadow_of = NULL WHERE shadow_of IS NOT NULL`).run()
+      const setShadow = this.db.prepare(`UPDATE media SET shadow_of = ? WHERE id = ? AND shadow_of IS NULL`)
+      // 1) copie negli album Takeout → la copia fuori dagli album
+      if (albums.size) {
+        const inAlbum = this.db.prepare(`SELECT id, size_bytes s, hash_quick q FROM media WHERE folder_path_relative = ? AND status = 'ok' AND hash_quick IS NOT NULL`)
+        const twins = this.db.prepare(`SELECT id, folder_path_relative f FROM media WHERE size_bytes = ? AND hash_quick = ? AND status = 'ok' AND id != ? ORDER BY id`)
+        for (const folder of albums) {
+          for (const r of inAlbum.all(folder) as { id: number; s: number; q: string }[]) {
+            const primary = (twins.all(r.s, r.q, r.id) as { id: number; f: string }[]).find((t) => !albums.has(t.f))
+            if (primary && setShadow.run(primary.id, r.id).changes) n++
+          }
+        }
+      }
+      // 2) originale di una copia modificata → la copia modificata
+      const edited = this.db
+        .prepare(`SELECT id, folder_path_relative f, file_name n FROM media WHERE status IN ('ok','corrupt') AND shadow_of IS NULL AND file_name LIKE '%-%'`)
+        .all() as { id: number; f: string; n: string }[]
+      const findOrig = this.db.prepare(`SELECT id FROM media WHERE folder_path_relative = ? AND file_name = ? COLLATE NOCASE AND status IN ('ok','corrupt') AND id != ?`)
+      for (const e of edited) {
+        const orig = editedOriginalName(e.n)
+        if (!orig) continue
+        const o = findOrig.get(e.f, orig, e.id) as { id: number } | undefined
+        if (o && setShadow.run(e.id, o.id).changes) n++
+      }
+      // catene (copia in album → originale → modificata): puntano direttamente all'elemento visibile
+      this.db.prepare(`UPDATE media SET shadow_of = (SELECT p.shadow_of FROM media p WHERE p.id = media.shadow_of)
+        WHERE shadow_of IN (SELECT id FROM media WHERE shadow_of IS NOT NULL)`).run()
+    })()
+    return n
   }
 
   colorOf(id: number): ColorLabel {
@@ -523,7 +611,7 @@ export function applySearch(search: string, where: string[], params: unknown[]):
         params.push(val.toLowerCase().replace(/^\./, ''))
         break
       case 'year':
-        where.push(`strftime('%Y', m.effective_date/1000, 'unixepoch') = ?`)
+        where.push(`strftime('%Y', m.effective_date/1000, 'unixepoch', 'localtime') = ?`)
         params.push(val)
         break
       case 'camera':
@@ -545,6 +633,7 @@ export function applySearch(search: string, where: string[], params: unknown[]):
         else if (['photo', 'video', 'gif', 'raw', 'foto'].includes(v)) { where.push(`m.kind = ?`); params.push(v === 'foto' ? 'photo' : v) }
         else if (['keep', 'maybe', 'trash'].includes(v)) { where.push(`m.flag = ?`); params.push(v) }
         else if (v === 'screenshot') where.push(`m.is_screenshot = 1`)
+        else if (['whatsapp', 'social', 'phone', 'camera', 'smartphone', 'fotocamera'].includes(v)) { where.push(`m.origin = ?`); params.push(v === 'smartphone' ? 'phone' : v === 'fotocamera' ? 'camera' : v) }
         else if (v === 'gps') where.push(`m.gps_lat IS NOT NULL`)
         break
       }

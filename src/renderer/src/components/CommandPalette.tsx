@@ -45,7 +45,12 @@ export function CommandPalette() {
       { id: 't-hc', label: 'Tema: alto contrasto', run: theme('high-contrast') },
       { id: 'grid', label: 'Cambia dimensione griglia', keys: 'G', run: () => { const g = st().settings.gridSize; void st().updateSettings({ gridSize: g === 's' ? 'm' : g === 'm' ? 'l' : 's' }) } },
       { id: 'settings', label: 'Impostazioni', run: () => st().setView({ kind: 'settings' }) },
-      { id: 'vault', label: 'Apri cartella del vault', run: () => void api('vault.revealRoot') },
+      { id: 'open', label: 'Apri un\'altra cartella di foto…', run: () => st().openFolderDialog() },
+      { id: 'reveal', label: 'Mostra la cartella in Esplora risorse', run: () => void api('vault.revealRoot') },
+      { id: 'whatsapp', label: 'Foto di WhatsApp', run: lib('whatsapp') },
+      { id: 'phone', label: 'Foto da smartphone', run: lib('phone') },
+      { id: 'camera', label: 'Foto da fotocamera', run: lib('camera') },
+      { id: 'gps', label: 'Foto con posizione', run: lib('gps') },
       { id: 'logs', label: 'Apri log operazioni', run: () => void api('maintenance.openLogs') }
     ]
   }, [])

@@ -6,3 +6,10 @@ dist/
 *.log
 *.tsbuildinfo
 release/
+.vibevault/
+VibeVault-SSD/VibeVault.exe
+VibeVault-SSD/VibeVault-dati/
+VibeVault-SSD/Cache/
+VibeVault-SSD/Library/
+VibeVault-SSD/Trash/
+VibeVault-SSD/Exports/

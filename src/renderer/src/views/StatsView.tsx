@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { AlertTriangle, CalendarOff, FileQuestion, Heart, HardDrive, Images, ImageDown } from 'lucide-react'
 import type { LibraryStats, ScanErrorEntry } from '@shared/types'
+import { ORIGIN_LABELS } from '@shared/formats'
+import type { LibraryViewId } from '@/store/app'
 import { useApp } from '@/store/app'
 import { api } from '@/lib/api'
 import { formatBytes, formatCount } from '@/lib/format'
@@ -33,7 +35,7 @@ export function StatsView() {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Card icon={<Images size={14} />} label="Elementi" value={formatCount(s.total)} sub={formatBytes(s.totalBytes)} />
           <Card icon={<Heart size={14} />} label="Preferiti" value={formatCount(s.favorites)} onClick={() => setView({ kind: 'library', id: 'favorites' })} />
-          <Card icon={<CalendarOff size={14} />} label="Senza data EXIF" value={formatCount(s.noDate)} onClick={() => setView({ kind: 'library', id: 'nodate' })} />
+          <Card icon={<CalendarOff size={14} />} label="Senza data" value={formatCount(s.noDate)} onClick={() => setView({ kind: 'library', id: 'nodate' })} />
           <Card icon={<ImageDown size={14} />} label="Miniature in coda" value={formatCount(s.thumbsPending)} />
         </div>
 
@@ -54,6 +56,25 @@ export function StatsView() {
             ))}
           </div>
         </section>
+
+        {s.byOrigin.length > 0 && (
+          <section className="rounded-xl border border-line bg-panel p-5">
+            <h3 className="mb-3 font-display text-[14px] font-semibold">Provenienza</h3>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+              {s.byOrigin.map((o) => (
+                <button
+                  key={o.origin}
+                  disabled={o.origin === 'unknown'}
+                  onClick={() => setView({ kind: 'library', id: (o.origin === 'screenshot' ? 'screenshots' : o.origin) as LibraryViewId })}
+                  className="rounded-lg bg-elev-2 px-3 py-2 text-left enabled:hover:bg-hover"
+                >
+                  <div className="text-[12px] text-faint">{ORIGIN_LABELS[o.origin]}</div>
+                  <div className="font-display text-[18px] font-semibold tabular-nums">{formatCount(o.count)}</div>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
         <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
           <section className="rounded-xl border border-line bg-panel p-5">
@@ -85,7 +106,7 @@ export function StatsView() {
           <h3 className="mb-3 font-display text-[14px] font-semibold">Salute della libreria</h3>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <Card icon={<FileQuestion size={14} />} label="Mancanti" value={formatCount(s.missing)} onClick={() => setView({ kind: 'library', id: 'missing' })} />
-            <Card icon={<AlertTriangle size={14} />} label="Corrotti" value={formatCount(s.corrupt)} />
+            <Card icon={<AlertTriangle size={14} />} label="Danneggiati" value={formatCount(s.corrupt)} onClick={() => setView({ kind: 'library', id: 'corrupt' })} />
             <Card icon={<HardDrive size={14} />} label="Nel cestino" value={formatCount(s.trashed)} onClick={() => setView({ kind: 'trash' })} />
             <Card icon={<AlertTriangle size={14} />} label="Errori ultima scansione" value={formatCount(errors.length)} />
           </div>

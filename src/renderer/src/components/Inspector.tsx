@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Check, ExternalLink, FolderOpen, Heart, HelpCircle, MapPin, Plus, X, Album as AlbumIcon, Info } from 'lucide-react'
 import type { Flag, MediaDetails } from '@shared/types'
+import { ORIGIN_LABELS } from '@shared/formats'
 import { useApp } from '@/store/app'
 import { api, thumbUrl } from '@/lib/api'
 import { formatBytes, formatDate, formatDuration, plural } from '@/lib/format'
@@ -161,7 +162,13 @@ export function Inspector() {
           >
             {d.fileName}
           </button>
-          <p className="mt-1 text-[12px] text-faint">{formatDate(d.effectiveDate)}{d.dateSource === 'file' && ' · data del file'}{d.dateSource === 'none' && ' · senza data'}</p>
+          <p className="mt-1 text-[12px] text-faint" title="Da dove viene la data">
+            {formatDate(d.effectiveDate)}
+            {d.dateSource === 'takeout' && ' · da Google Foto'}
+            {d.dateSource === 'filename' && ' · dal nome del file'}
+            {d.dateSource === 'file' && ' · data del file'}
+            {d.dateSource === 'none' && ' · senza data'}
+          </p>
           {d.status !== 'ok' && <p className="mt-2 rounded-md bg-warn/15 px-2 py-1 text-[12px] text-warn">Stato: {d.status === 'missing' ? 'file mancante su disco' : d.status === 'corrupt' ? 'file corrotto o illeggibile' : d.status}</p>}
         </div>
 
@@ -216,6 +223,7 @@ export function Inspector() {
           {d.durationMs ? <Row label="Durata">{formatDuration(d.durationMs)}</Row> : null}
           <Row label="Formato">{d.extension.toUpperCase()} · {d.mimeType}</Row>
           {(d.cameraMake || d.cameraModel) && <Row label="Fotocamera">{[d.cameraMake, d.cameraModel].filter(Boolean).join(' ')}</Row>}
+          {d.origin !== 'unknown' && <Row label="Provenienza">{ORIGIN_LABELS[d.origin]}</Row>}
           {d.gpsLat !== null && d.gpsLon !== null && (
             <Row label="Posizione"><span className="inline-flex items-center gap-1"><MapPin size={12} className="text-accent" />{d.gpsLat.toFixed(5)}, {d.gpsLon.toFixed(5)}</span></Row>
           )}
@@ -224,6 +232,19 @@ export function Inspector() {
           <Row label="Percorso"><span className="font-mono text-[11.5px] text-dim">{d.filePathRelative}</span></Row>
           {d.hashSha256 && <Row label="SHA-256"><span className="font-mono text-[10.5px] text-dim">{d.hashSha256.slice(0, 24)}…</span></Row>}
         </section>
+
+        {d.copies.length > 0 && (
+          <section>
+            <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-faint">Altre copie ({d.copies.length})</h4>
+            <p className="mb-1.5 text-[11.5px] text-faint">Nascoste nella timeline per non vedere doppioni (originale non modificato o copia in un album di Google Foto).</p>
+            {d.copies.map((c) => (
+              <div key={c.id} className="flex items-center gap-2 py-0.5 text-[12px]">
+                <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-dim" title={`${c.folder}/${c.fileName}`}>{c.folder ? `${c.folder}/` : ''}{c.fileName}</span>
+                <IconButton size="sm" label="Mostra nella cartella" onClick={() => void api('media.showInFolder', c.id)}><FolderOpen size={13} /></IconButton>
+              </div>
+            ))}
+          </section>
+        )}
 
         <div className="flex gap-2">
           <Button size="sm" variant="soft" icon={<FolderOpen size={14} />} onClick={() => void api('media.showInFolder', d.id)}>Mostra</Button>

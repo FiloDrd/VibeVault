@@ -24,15 +24,17 @@ function onPath(name: string): string | null {
 
 /**
  * Ordine di ricerca FFmpeg/ffprobe:
- *   1. <root>/App/bin/ (binari portatili messi dall'utente accanto all'app)
+ *   1. cartelle bin/ locali (es. <cartella dell'exe>/bin: binari portatili messi dall'utente)
  *   2. pacchetti ffmpeg-static / ffprobe-static inclusi nella build
  *   3. PATH di sistema
  */
-export function resolveTools(vaultRoot: string): Tools {
-  const localBin = path.join(vaultRoot, 'App', 'bin')
+export function resolveTools(localBinDirs: string[]): Tools {
   const local = (n: string) => {
-    const p = path.join(localBin, exe(n))
-    return fs.existsSync(p) ? p : null
+    for (const dir of localBinDirs) {
+      const p = path.join(dir, exe(n))
+      if (fs.existsSync(p)) return p
+    }
+    return null
   }
   let ffmpegStatic: string | null = null
   let ffprobeStatic: string | null = null

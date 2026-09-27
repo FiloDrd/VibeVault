@@ -25,7 +25,14 @@ win:
       arch: [x64]
   signAndEditExecutable: false
   files:
+    - out/**/*
+    - package.json
+    - "!**/*.map"
     - "!node_modules/@img/sharp-wasm32/**"
+    - "!node_modules/@img/sharp-linux*/**"
+    - "!node_modules/@img/sharp-libvips-linux*/**"
+    - "!node_modules/@img/sharp-darwin*/**"
+    - "!node_modules/@img/sharp-libvips-darwin*/**"
     - "!node_modules/ffprobe-static/bin/darwin/**"
     - "!node_modules/ffprobe-static/bin/linux/**"
     - "!node_modules/ffprobe-static/bin/win32/ia32/**"
@@ -38,11 +45,17 @@ portable:
 mac:
   target: [dir]
   files:
+    - out/**/*
+    - package.json
+    - "!**/*.map"
     - "!node_modules/ffprobe-static/bin/win32/**"
     - "!node_modules/ffprobe-static/bin/linux/**"
 linux:
   target: [dir]
   files:
+    - out/**/*
+    - package.json
+    - "!**/*.map"
     - "!node_modules/ffprobe-static/bin/win32/**"
     - "!node_modules/ffprobe-static/bin/darwin/**"
     - "!node_modules/ffprobe-static/bin/linux/{ia32,arm,arm64}/**"

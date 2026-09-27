@@ -61,16 +61,21 @@ function ConfirmDialog({ d, close }: { d: Extract<DialogState, { type: 'confirm'
 
 function MoveDialog({ d, close }: { d: Extract<DialogState, { type: 'move' }>; close: () => void }) {
   const folders = useApp((s) => s.folders)
+  const vault = useApp((s) => s.vault)
   const runOp = useApp((s) => s.runOp)
   const refreshMeta = useApp((s) => s.refreshMeta)
-  const [dest, setDest] = useState<string>('Library')
+  // cartella radice: Library/ nei vault v0.1, altrimenti la cartella aperta
+  const rootPath = vault?.layout === 'legacy' ? 'Library' : ''
+  const rootName = vault?.layout === 'legacy' ? 'Library' : vault?.name ?? 'Cartella'
+  const [dest, setDest] = useState<string>(rootPath)
   const [filter, setFilter] = useState('')
   const [newName, setNewName] = useState('')
+  const destLabel = dest === rootPath ? rootName : dest
   const list = useMemo(() => {
-    const all = [{ pathRelative: 'Library', name: 'Library', fileCount: 0 }, ...folders.filter((f) => f.pathRelative !== 'Library')]
+    const all = [{ pathRelative: rootPath, name: rootName, fileCount: 0 }, ...folders.filter((f) => f.pathRelative !== rootPath)]
     const q = filter.toLowerCase()
     return all.filter((f) => !q || f.pathRelative.toLowerCase().includes(q))
-  }, [folders, filter])
+  }, [folders, filter, rootPath, rootName])
 
   const createAndSelect = async () => {
     if (!newName.trim()) return
@@ -87,22 +92,22 @@ function MoveDialog({ d, close }: { d: Extract<DialogState, { type: 'move' }>; c
       width={520}
       title={`${d.mode === 'move' ? 'Sposta' : 'Copia'} ${formatCount(d.ids.length)} ${d.ids.length === 1 ? 'file' : 'file'}`}
       onClose={close}
-      footer={<><span className="mr-auto self-center font-mono text-[11.5px] text-faint">→ {dest}</span><Button variant="ghost" onClick={close}>Annulla</Button><Button variant="primary" onClick={() => void go()}>{d.mode === 'move' ? 'Sposta qui' : 'Copia qui'}</Button></>}
+      footer={<><span className="mr-auto self-center font-mono text-[11.5px] text-faint">→ {destLabel}</span><Button variant="ghost" onClick={close}>Annulla</Button><Button variant="primary" onClick={() => void go()}>{d.mode === 'move' ? 'Sposta qui' : 'Copia qui'}</Button></>}
     >
       <input autoFocus className={inputCls} placeholder="Filtra cartelle…" value={filter} onChange={(e) => setFilter(e.target.value)} />
       <div className="mt-2 max-h-[300px] overflow-y-auto rounded-lg border border-line">
         {list.map((f) => {
-          const depth = f.pathRelative.split('/').length - 1
+          const depth = f.pathRelative === '' ? 0 : f.pathRelative.split('/').length - (rootPath === '' ? 0 : 1)
           return (
             <button key={f.pathRelative} onClick={() => setDest(f.pathRelative)} onDoubleClick={() => { setDest(f.pathRelative); void go() }} className={cx('flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px]', dest === f.pathRelative ? 'bg-accent-soft text-fg' : 'hover:bg-hover')} style={{ paddingLeft: 12 + (filter ? 0 : depth * 14) }}>
               <Folder size={14} className={dest === f.pathRelative ? 'text-accent' : 'text-faint'} />
-              <span className="truncate">{filter ? f.pathRelative : f.name}</span>
+              <span className="truncate">{filter && f.pathRelative ? f.pathRelative : f.name}</span>
             </button>
           )
         })}
       </div>
       <div className="mt-3 flex gap-2">
-        <input className={inputCls} placeholder={`Nuova cartella in ${dest}`} value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void createAndSelect() }} />
+        <input className={inputCls} placeholder={`Nuova cartella in ${destLabel}`} value={newName} onChange={(e) => setNewName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void createAndSelect() }} />
         <Button icon={<FolderPlus size={14} />} onClick={() => void createAndSelect()} disabled={!newName.trim()}>Crea</Button>
       </div>
       <p className="mt-3 text-[12px] text-faint">I file con lo stesso nome non vengono mai sovrascritti: si aggiunge un suffisso "(1)". Puoi annullare con Ctrl+Z.</p>

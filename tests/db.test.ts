@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { openDatabase, backupDatabase } from '../src/main/db/database'
+import { MIGRATIONS } from '../src/main/db/schema'
 import { MediaRepo, type ScannedRecord } from '../src/main/db/mediaRepo'
 import { AlbumRepo, SettingsRepo, TagRepo } from '../src/main/db/orgRepo'
 
@@ -16,7 +17,7 @@ export function rec(rel: string, over: Partial<ScannedRecord> = {}): ScannedReco
     rel, folder: rel.split('/').slice(0, -1).join('/'), name, ext: name.split('.').pop()!, mime: 'image/jpeg', kind: 'photo',
     size: 1000, mtime: 1_600_000_000_000, birthtime: 1_600_000_000_000, exifDate: null, width: 100, height: 50,
     durationMs: null, orientation: null, make: null, model: null, lat: null, lon: null, hashQuick: 'h-' + rel,
-    isScreenshot: false, status: 'ok', error: null, ...over
+    isScreenshot: false, status: 'ok', error: null, takeoutDate: null, nameDate: null, origin: 'unknown', takeout: null, ...over
   }
 }
 
@@ -25,7 +26,7 @@ describe('database', () => {
     const dir = tmpDir()
     const { db, recovered } = openDatabase(path.join(dir, 'database.sqlite'))
     expect(recovered).toBe(false)
-    expect(db.pragma('user_version', { simple: true })).toBe(1)
+    expect(db.pragma('user_version', { simple: true })).toBe(MIGRATIONS.length)
     const idx = (db.prepare(`SELECT name FROM sqlite_master WHERE type='index'`).all() as { name: string }[]).map((r) => r.name)
     for (const n of ['idx_media_folder', 'idx_media_kind_date', 'idx_media_rating', 'idx_media_favorite', 'idx_media_date']) expect(idx).toContain(n)
     db.close()

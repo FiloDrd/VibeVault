@@ -1,6 +1,6 @@
-import type { MediaKind } from './formats'
+import type { MediaKind, Origin } from './formats'
 
-export type { MediaKind }
+export type { MediaKind, Origin }
 export type Flag = 'none' | 'keep' | 'maybe' | 'trash'
 export type ColorLabel = 'none' | 'red' | 'orange' | 'yellow' | 'green' | 'blue' | 'purple'
 export type MediaStatus = 'ok' | 'missing' | 'corrupt' | 'unsupported' | 'trashed'
@@ -33,7 +33,8 @@ export interface MediaDetails {
   modifiedAt: number | null
   exifDate: number | null
   effectiveDate: number
-  dateSource: 'exif' | 'file' | 'none'
+  /** da dove viene la data: JSON di Google Takeout, EXIF, nome del file, data del file */
+  dateSource: 'takeout' | 'exif' | 'filename' | 'file' | 'none'
   width: number | null
   height: number | null
   durationMs: number | null
@@ -56,6 +57,9 @@ export interface MediaDetails {
   tags: Tag[]
   albums: Album[]
   absolutePath: string
+  origin: Origin
+  /** copie nascoste nella timeline che rimandano a questo elemento (originale non modificato, copia in un album) */
+  copies: { id: number; fileName: string; folder: string }[]
 }
 
 export interface Tag {
@@ -73,6 +77,8 @@ export interface Album {
   coverMediaId: number | null
   createdAt: number
   count?: number
+  /** album creato in automatico da una cartella album di Google Takeout */
+  sourceFolder?: string | null
 }
 
 export interface FolderNode {
@@ -109,6 +115,12 @@ export interface MediaQuery {
   dateTo?: number
   colorLabel?: ColorLabel
   recent?: boolean
+  origin?: Origin
+  hasGps?: boolean
+  /** durata minima/massima in millisecondi (video) */
+  durationMin?: number
+  durationMax?: number
+  corrupt?: boolean
   limit?: number
 }
 
@@ -180,7 +192,9 @@ export interface LibraryStats {
   byKind: { kind: MediaKind; count: number; bytes: number }[]
   byYear: { year: string; count: number }[]
   byExt: { ext: string; count: number; bytes: number }[]
+  byOrigin: { origin: Origin; count: number }[]
   noDate: number
+  withGps: number
   missing: number
   corrupt: number
   trashed: number
@@ -191,6 +205,10 @@ export interface LibraryStats {
 
 export interface VaultInfo {
   root: string
+  /** nome della cartella aperta (es. "Foto") */
+  name: string
+  /** 'folder' = cartella qualsiasi con dati in .vibevault/ · 'legacy' = vault v0.1 con Library/ */
+  layout: 'folder' | 'legacy'
   libraryDir: string
   portable: boolean
   rootChanged: { from: string; to: string } | null
@@ -198,6 +216,13 @@ export interface VaultInfo {
   dbPath: string
   tools: { ffmpeg: string | null; ffprobe: string | null }
   version: string
+}
+
+export interface RecentFolder {
+  path: string
+  name: string
+  exists: boolean
+  current: boolean
 }
 
 export type ThemeName = 'dark' | 'light' | 'auto' | 'high-contrast'

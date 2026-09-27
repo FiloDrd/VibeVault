@@ -2,6 +2,9 @@
  * Migrazioni SQLite versionate tramite PRAGMA user_version.
  * Regola: non modificare mai una migrazione già rilasciata, aggiungerne una nuova.
  */
+import type { DB } from './database'
+import { originFor } from '@shared/formats'
+
 export const MIGRATIONS: string[] = [
   /* v1 — schema iniziale. AUTOINCREMENT: gli id non vengono mai riutilizzati (l'undo e il log vi fanno riferimento). */ `
   CREATE TABLE IF NOT EXISTS folders (
@@ -147,5 +150,28 @@ export const MIGRATIONS: string[] = [
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+  `,
+
+  /* v2 — cartella qualsiasi come libreria: provenienza (smartphone, WhatsApp…), copie nascoste
+     (originali "-edited" e copie negli album Takeout), album creati dalle cartelle di Takeout.
+     I file senza data EXIF vengono riletti alla prossima scansione (date da Takeout e dal nome). */ `
+  ALTER TABLE media ADD COLUMN origin TEXT NOT NULL DEFAULT 'unknown';
+  ALTER TABLE media ADD COLUMN shadow_of INTEGER;
+  CREATE INDEX IF NOT EXISTS idx_media_origin ON media(origin);
+  CREATE INDEX IF NOT EXISTS idx_media_shadow ON media(shadow_of);
+  CREATE INDEX IF NOT EXISTS idx_media_gps ON media(gps_lat) WHERE gps_lat IS NOT NULL;
+  ALTER TABLE albums ADD COLUMN source_folder TEXT;
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_albums_source ON albums(source_folder) WHERE source_folder IS NOT NULL;
+  CREATE TABLE IF NOT EXISTS dismissed_folder_albums (source_folder TEXT PRIMARY KEY);
+  UPDATE media SET modified_at = NULL WHERE date_source != 'exif' AND status IN ('ok','corrupt');
   `
 ]
+
+/** Passi in JavaScript eseguiti subito dopo la migrazione con lo stesso indice (stessa transazione). */
+export const POST_MIGRATIONS: Record<number, (db: DB) => void> = {
+  1: (db) => {
+    const rows = db.prepare(`SELECT id, file_name n, camera_make mk, camera_model md FROM media`).all() as { id: number; n: string; mk: string | null; md: string | null }[]
+    const set = db.prepare(`UPDATE media SET origin = ? WHERE id = ?`)
+    for (const r of rows) set.run(originFor(r.n, r.mk, r.md), r.id)
+  }
+}

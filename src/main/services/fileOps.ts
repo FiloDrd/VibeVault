@@ -6,6 +6,7 @@ import { relBasename, relDirname, relJoin, normalizeRel, sanitizeFileName } from
 import type { OpResult } from '@shared/types'
 import { EMPTY_TRASH_CONFIRM } from '@shared/ipc'
 import { extOf } from '@shared/formats'
+import { SidecarIndex, sidecarNameFor } from '@shared/takeout'
 
 // ----------------------------------------------------------------- primitive
 
@@ -126,6 +127,40 @@ export function safeCopy(srcAbs: string, destAbs: string): void {
   copyVerified(srcAbs, destAbs)
 }
 
+// ----------------------------------------------------------------- JSON di Google Takeout
+
+type DirCache = Map<string, string[]>
+
+function jsonsIn(dir: string, cache?: DirCache): string[] {
+  const hit = cache?.get(dir)
+  if (hit) return hit
+  let names: string[] = []
+  try { names = fs.readdirSync(dir).filter((n) => /\.json$/i.test(n)) } catch { names = [] }
+  cache?.set(dir, names)
+  return names
+}
+
+/** Il JSON di Takeout che appartiene a questo file (non quello dell'originale di una copia "-edited"). */
+function ownSidecar(mediaAbs: string, cache?: DirCache): string | null {
+  const names = jsonsIn(path.dirname(mediaAbs), cache)
+  if (!names.length) return null
+  const hit = new SidecarIndex(names).find(path.basename(mediaAbs))
+  return hit && hit.direct && hit.names.length === 1 ? path.join(path.dirname(mediaAbs), hit.names[0]) : null
+}
+
+/** Porta con sé il JSON di Takeout quando un file viene spostato o rinominato (best effort, mai sovrascrive). */
+function moveSidecar(srcAbs: string, destAbs: string, cache?: DirCache): void {
+  try {
+    const sc = ownSidecar(srcAbs, cache)
+    if (!sc || !fs.existsSync(sc)) return
+    const dest = path.join(path.dirname(destAbs), sidecarNameFor(path.basename(sc), path.basename(srcAbs), path.basename(destAbs)))
+    if (fs.existsSync(dest)) return
+    safeMove(sc, dest)
+    cache?.delete(path.dirname(srcAbs))
+    cache?.delete(path.dirname(destAbs))
+  } catch { /* il JSON non è indispensabile: i suoi dati sono già nel database */ }
+}
+
 function result(ctx: AppContext, affected: number, errors: OpResult['errors'], operationId?: number, message?: string): OpResult {
   if (operationId !== undefined) ctx.ops.setStatus(operationId, affected === 0 && errors.length ? 'failed' : errors.length ? 'partial' : 'done')
   return { ok: errors.length === 0, affected, errors, operationId, message }
@@ -146,6 +181,7 @@ export async function moveFiles(ctx: AppContext, ids: number[], destFolderRel: s
   await maybeBackup(ctx, ids.length, 'before-move')
   const errors: OpResult['errors'] = []
   const moves: MoveUndo['moves'] = []
+  const dirs: DirCache = new Map()
   for (const row of ctx.media.getRows(ids)) {
     if (row.status === 'trashed') { errors.push({ id: row.id, message: 'Il file è nel cestino' }); continue }
     if (row.folder_path_relative === dest) continue
@@ -160,6 +196,7 @@ export async function moveFiles(ctx: AppContext, ids: number[], destFolderRel: s
         safeMove(ctx.vault.toAbs(to), srcAbs) // rollback del file se il DB fallisce
         throw dbErr
       }
+      moveSidecar(srcAbs, ctx.vault.toAbs(to), dirs)
       moves.push({ id: row.id, from: row.file_path_relative, to })
     } catch (e) {
       errors.push({ id: row.id, path: row.file_path_relative, message: (e as Error).message })
@@ -183,6 +220,7 @@ export function undoMoves(ctx: AppContext, u: MoveUndo): OpResult {
       const back = relJoin(dir, name)
       safeMove(ctx.vault.toAbs(m.to), ctx.vault.toAbs(back))
       try { ctx.media.updatePath(m.id, back, dir, name) } catch (dbErr) { safeMove(ctx.vault.toAbs(back), ctx.vault.toAbs(m.to)); throw dbErr }
+      moveSidecar(ctx.vault.toAbs(m.to), ctx.vault.toAbs(back))
       n++
     } catch (e) {
       errors.push({ id: m.id, path: m.to, message: (e as Error).message })
@@ -206,9 +244,9 @@ export async function copyFiles(ctx: AppContext, ids: number[], destFolderRel: s
       try {
         info = ctx.db.prepare(`INSERT INTO media (file_path_relative, folder_path_relative, file_name, extension, mime_type, kind, size_bytes,
           created_at, modified_at, exif_date, effective_date, date_source, width, height, duration_ms, orientation, camera_make, camera_model,
-          gps_lat, gps_lon, hash_quick, hash_sha256, status, is_screenshot, added_at, last_seen_scan, thumb_state)
+          gps_lat, gps_lon, hash_quick, hash_sha256, status, is_screenshot, added_at, last_seen_scan, thumb_state, origin)
         SELECT ?, ?, ?, extension, mime_type, kind, size_bytes, created_at, modified_at, exif_date, effective_date, date_source, width, height,
-          duration_ms, orientation, camera_make, camera_model, gps_lat, gps_lon, hash_quick, hash_sha256, 'ok', is_screenshot, ?, last_seen_scan, 'pending'
+          duration_ms, orientation, camera_make, camera_model, gps_lat, gps_lon, hash_quick, hash_sha256, 'ok', is_screenshot, ?, last_seen_scan, 'pending', origin
         FROM media WHERE id = ?`).run(to, dest, name, Date.now(), row.id)
       } catch (dbErr) {
         // rimuove solo la copia appena creata da questa operazione
@@ -252,6 +290,7 @@ export function renameFiles(ctx: AppContext, items: { id: number; newName: strin
       if (fs.existsSync(destAbs) && !sameFile(srcAbs, destAbs)) throw new Error(`"${name}" esiste già in questa cartella`)
       safeMove(srcAbs, destAbs)
       try { ctx.media.updatePath(row.id, to, dir, name) } catch (dbErr) { safeMove(destAbs, srcAbs); throw dbErr }
+      moveSidecar(srcAbs, destAbs)
       renames.push({ id: row.id, from: row.file_path_relative, to })
     } catch (e) {
       errors.push({ id: it.id, path: row.file_path_relative, message: (e as Error).message })
@@ -274,6 +313,7 @@ export function undoRenames(ctx: AppContext, u: RenameUndo): OpResult {
       if ((fs.existsSync(orig) && !sameFile(cur, orig)) || ctx.media.pathExists(r.from, r.id)) throw new Error('Il nome originale è ora occupato')
       safeMove(cur, orig)
       try { ctx.media.updatePath(r.id, r.from, relDirname(r.from), relBasename(r.from)) } catch (dbErr) { safeMove(orig, cur); throw dbErr }
+      moveSidecar(cur, orig)
       n++
     } catch (e) {
       errors.push({ id: r.id, message: (e as Error).message })
@@ -311,6 +351,7 @@ export function renameTemplatePreview(ctx: AppContext, ids: number[], template: 
 export function createFolder(ctx: AppContext, parentRel: string, name: string): { ok: boolean; path?: string; message?: string } {
   try {
     const clean = sanitizeFileName(name.trim())
+    if (clean.startsWith('.')) return { ok: false, message: 'Il nome non può iniziare con un punto (le cartelle nascoste non vengono lette)' }
     const rel = relJoin(normalizeRel(parentRel), clean)
     if (!rel || ctx.vault.isReserved(rel)) return { ok: false, message: 'Nome o posizione non consentiti' }
     const abs = ctx.vault.toAbs(rel)
@@ -346,13 +387,14 @@ export async function trashFiles(ctx: AppContext, ids: number[], opts: { allowFa
   await maybeBackup(ctx, ids.length, 'before-trash')
   const errors: OpResult['errors'] = []
   const trashIds: number[] = []
+  const dirs: DirCache = new Map()
   const day = new Date().toISOString().slice(0, 10)
   for (const row of ctx.media.getRows(ids)) {
     if (row.status === 'trashed') continue
     if (row.favorite && !opts.allowFavorites) { errors.push({ id: row.id, path: row.file_path_relative, message: 'Preferito protetto: togli il preferito o conferma' }); continue }
     try {
       const srcAbs = ctx.vault.toAbs(row.file_path_relative)
-      const dirRel = `Trash/${day}`
+      const dirRel = relJoin(ctx.vault.trashRel, day)
       const name = uniqueName(ctx, dirRel, `${row.id}__${row.file_name}`)
       const trashRel = relJoin(dirRel, name)
       let moved = false
@@ -375,6 +417,7 @@ export async function trashFiles(ctx: AppContext, ids: number[], opts: { allowFa
         if (moved) safeMove(ctx.vault.toAbs(trashRel), srcAbs)
         throw dbErr
       }
+      if (moved) moveSidecar(srcAbs, ctx.vault.toAbs(trashRel), dirs)
     } catch (e) {
       errors.push({ id: row.id, path: row.file_path_relative, message: (e as Error).message })
     }
@@ -422,6 +465,7 @@ export function restoreFromTrash(ctx: AppContext, trashIds: number[], record = t
         if (moved) safeMove(ctx.vault.toAbs(back), trashAbs)
         throw dbErr
       }
+      if (moved) moveSidecar(trashAbs, ctx.vault.toAbs(back))
       if (t.mediaId && media) { mediaIds.push(t.mediaId); restored.push({ id: t.mediaId, path: back }) }
     } catch (e) {
       errors.push({ id: t.mediaId ?? undefined, path: t.originalPath, message: (e as Error).message })
@@ -443,9 +487,12 @@ export function emptyTrash(ctx: AppContext, opts: { trashIds?: number[]; confirm
   let bytes = 0
   for (const t of list) {
     try {
+      if (!t.trashPath.startsWith(ctx.vault.trashRel + '/')) throw new Error('Percorso fuori dal cestino: rifiutato')
       const abs = ctx.vault.toAbs(t.trashPath)
-      if (!t.trashPath.startsWith('Trash/')) throw new Error('Percorso fuori dal cestino: rifiutato')
+      const sc = ownSidecar(abs)
       if (fs.existsSync(abs)) fs.rmSync(abs)
+      // il JSON di Takeout finito nel cestino insieme alla foto (solo dentro il cestino)
+      if (sc && ctx.vault.toRel(sc).startsWith(ctx.vault.trashRel + '/')) { try { fs.rmSync(sc) } catch { /* ignora */ } }
       ctx.trash.markPurged(t.id)
       if (t.mediaId) {
         onPurged(t.mediaId)

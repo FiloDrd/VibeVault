@@ -1,15 +1,17 @@
 import { create } from 'zustand'
 import type {
-  Album, AppSettings, FolderNode, GridItem, MediaKind, MediaQuery, OpResult, ScanProgress, SortField, Tag, ThumbStatus, VaultInfo
+  Album, AppSettings, FolderNode, GridItem, LibraryStats, MediaKind, MediaQuery, OpResult, RecentFolder, ScanProgress, SortField, Tag, ThumbStatus, VaultInfo
 } from '@shared/types'
 import { DEFAULT_SETTINGS } from '@shared/types'
-import { api } from '@/lib/api'
+import { api, setVaultKey } from '@/lib/api'
 
 export type LibraryViewId =
   | 'all' | 'photos' | 'videos' | 'gif' | 'raw' | 'screenshots' | 'favorites' | 'recent' | 'large' | 'nodate' | 'archive' | 'missing' | 'vertical'
+  | 'phone' | 'camera' | 'whatsapp' | 'social' | 'gps' | 'short' | 'long' | 'corrupt'
 
 export type View =
   | { kind: 'library'; id: LibraryViewId }
+  | { kind: 'year'; year: number }
   | { kind: 'album'; id: number }
   | { kind: 'tag'; id: number }
   | { kind: 'folder'; path: string }
@@ -29,14 +31,22 @@ export const LIBRARY_VIEWS: Record<LibraryViewId, { label: string; query: MediaQ
   favorites: { label: 'Preferiti', query: { favorite: true } },
   recent: { label: 'Aggiunti di recente', query: { recent: true, sort: 'added' } },
   large: { label: 'File grandi', query: { largeFiles: true, sort: 'size' } },
-  nodate: { label: 'Senza data EXIF', query: { noDate: true } },
+  nodate: { label: 'Senza data', query: { noDate: true } },
   archive: { label: 'Archivio', query: { archived: true } },
   missing: { label: 'File mancanti', query: { missing: true } },
-  vertical: { label: 'Video verticali', query: { kinds: ['video'], orientation: 'portrait' } }
+  vertical: { label: 'Video verticali', query: { kinds: ['video'], orientation: 'portrait' } },
+  phone: { label: 'Smartphone', query: { origin: 'phone' } },
+  camera: { label: 'Fotocamera', query: { origin: 'camera' } },
+  whatsapp: { label: 'WhatsApp', query: { origin: 'whatsapp' } },
+  social: { label: 'Social e messaggi', query: { origin: 'social' } },
+  gps: { label: 'Con posizione', query: { hasGps: true } },
+  short: { label: 'Video brevi', query: { kinds: ['video'], durationMax: 30000 } },
+  long: { label: 'Video lunghi', query: { kinds: ['video'], durationMin: 300000 } },
+  corrupt: { label: 'File danneggiati', query: { corrupt: true } }
 }
 
 export function isGridView(v: View): boolean {
-  return v.kind === 'library' || v.kind === 'album' || v.kind === 'tag' || v.kind === 'folder'
+  return v.kind === 'library' || v.kind === 'album' || v.kind === 'tag' || v.kind === 'folder' || v.kind === 'year'
 }
 
 export interface Toast {
@@ -68,6 +78,10 @@ interface State {
   lightboxIndex: number | null
   settings: AppSettings
   vault: VaultInfo | null
+  /** true mentre si apre una cartella (evita di mostrare la schermata di scelta) */
+  opening: boolean
+  recent: RecentFolder[]
+  stats: LibraryStats | null
   albums: Album[]
   tags: Tag[]
   folders: FolderNode[]
@@ -85,6 +99,10 @@ interface State {
   toggleKindFilter: (k: MediaKind | null) => void
   reload: () => Promise<void>
   refreshMeta: () => Promise<void>
+  /** Carica tutto per la cartella aperta (avvio e dopo ogni cambio di cartella). */
+  loadVault: (v: VaultInfo | null) => Promise<void>
+  openFolderDialog: () => Promise<void>
+  openRecent: (path: string) => Promise<void>
   updateSettings: (p: Partial<AppSettings>) => Promise<void>
 
   select: (id: number, mode: 'single' | 'toggle' | 'range') => void
@@ -104,6 +122,7 @@ interface State {
 
 let toastSeq = 0
 let queryToken = 0
+let vaultToken = 0
 
 export function queryFor(s: Pick<State, 'view' | 'search' | 'sort' | 'order' | 'kindFilter'>): MediaQuery | null {
   let base: MediaQuery
@@ -112,6 +131,7 @@ export function queryFor(s: Pick<State, 'view' | 'search' | 'sort' | 'order' | '
     case 'album': base = { albumId: s.view.id }; break
     case 'tag': base = { tagId: s.view.id }; break
     case 'folder': base = { folder: s.view.path, recursive: true }; break
+    case 'year': base = { dateFrom: new Date(s.view.year, 0, 1).getTime(), dateTo: new Date(s.view.year + 1, 0, 1).getTime() }; break
     case 'review': base = {}; break
     default: return null
   }
@@ -139,6 +159,9 @@ export const useApp = create<State>((set, get) => ({
   lightboxIndex: null,
   settings: DEFAULT_SETTINGS,
   vault: null,
+  opening: false,
+  recent: [],
+  stats: null,
   albums: [],
   tags: [],
   folders: [],
@@ -185,8 +208,45 @@ export const useApp = create<State>((set, get) => ({
   },
 
   refreshMeta: async () => {
-    const [albums, tags, folders, trash] = await Promise.all([api('albums.list'), api('tags.list'), api('library.folders'), api('trash.list')])
-    set({ albums, tags, folders, trashCount: trash.length })
+    if (!get().vault) { set({ recent: await api('folder.recent') }); return }
+    const [albums, tags, folders, trash, stats] = await Promise.all([api('albums.list'), api('tags.list'), api('library.folders'), api('trash.list'), api('library.stats')])
+    set({ albums, tags, folders, trashCount: trash.length, stats })
+  },
+
+  loadVault: async (v) => {
+    const token = ++vaultToken
+    setVaultKey(v?.vaultId ?? '')
+    set({
+      vault: v, view: { kind: 'library', id: 'all' }, search: '', kindFilter: [], items: [], selection: new Set(), anchorId: null,
+      lightboxIndex: null, dialog: null, albums: [], tags: [], folders: [], stats: null, trashCount: 0, loading: !!v
+    })
+    const recent = await api('folder.recent')
+    if (token !== vaultToken) return
+    if (!v) { set({ recent, scan: null, thumbs: null, loading: false }); return }
+    const [settings, scan, thumbs] = await Promise.all([api('settings.get'), api('library.scanStatus'), api('thumbs.status')])
+    if (token !== vaultToken) return
+    set({ recent, settings, scan, thumbs })
+    await Promise.all([get().reload(), get().refreshMeta()])
+  },
+
+  openFolderDialog: async () => {
+    set({ opening: true })
+    try {
+      const r = await api('folder.openDialog')
+      if (!r.ok && !r.canceled) get().toast({ text: r.message ?? 'Impossibile aprire la cartella', tone: 'error' })
+    } finally {
+      set({ opening: false })
+    }
+  },
+
+  openRecent: async (path) => {
+    set({ opening: true })
+    try {
+      const r = await api('folder.open', path)
+      if (!r.ok) { get().toast({ text: r.message ?? 'Impossibile aprire la cartella', tone: 'error' }); set({ recent: await api('folder.recent') }) }
+    } finally {
+      set({ opening: false })
+    }
   },
 
   updateSettings: async (p) => {

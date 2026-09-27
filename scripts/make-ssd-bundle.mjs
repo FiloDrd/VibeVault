@@ -2,11 +2,11 @@
 //
 //   release/VibeVault/
 //     App/            ← build Electron (VibeVault.exe + risorse)
-//     Library/        ← qui vanno foto, video e GIF
 //     LEGGIMI.txt
 //
-// Le altre cartelle (VaultData, Cache, Trash, Exports, Logs) vengono create
-// dall'app al primo avvio. Non cancella mai nulla fuori da release/.
+// Le foto restano nella cartella dell'utente: l'app scrive solo la cartella
+// nascosta .vibevault/ dentro la cartella foto scelta e VibeVault-dati/ accanto
+// all'exe. Non cancella mai nulla fuori da release/.
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -20,28 +20,25 @@ if (!unpacked) {
 const out = path.join(root, 'release', 'VibeVault')
 const app = path.join(out, 'App')
 if (fs.existsSync(app)) {
-  // sostituisce SOLO la cartella App (mai Library o i dati del vault)
+  // sostituisce SOLO la cartella App (mai i dati dell'utente)
   fs.rmSync(app, { recursive: true, force: true })
 }
 fs.mkdirSync(out, { recursive: true })
 fs.cpSync(unpacked, app, { recursive: true })
-for (const d of ['Library/Foto', 'Library/Video', 'Library/GIF', 'Library/Raw', 'Library/Screenshots', 'Library/Archivio']) {
-  fs.mkdirSync(path.join(out, d), { recursive: true })
-}
 fs.writeFileSync(
   path.join(out, 'LEGGIMI.txt'),
   [
     'VibeVault — media manager portatile',
     '',
-    '1. Copia questa cartella "VibeVault" sul tuo SSD.',
-    '2. Metti foto, video e GIF dentro Library/ (anche in sottocartelle).',
-    '3. Avvia App/VibeVault.exe (Windows).',
+    '1. Copia questa cartella "VibeVault" dove preferisci (anche sull\'SSD delle foto).',
+    '2. Avvia App/VibeVault.exe (Windows) e scegli la cartella delle tue foto.',
+    '3. VibeVault legge tutte le sottocartelle e mostra un\'unica timeline per data.',
     '',
-    'Tutto resta dentro questa cartella: database (VaultData/), miniature (Cache/),',
-    'cestino (Trash/), export (Exports/) e log (Logs/). Puoi spostare la cartella',
-    'o collegare l\'SSD a un altro PC: i percorsi sono relativi.',
+    'Le foto non vengono spostate. L\'app scrive solo la cartella nascosta .vibevault',
+    'dentro la cartella foto (indice, miniature, cestino, log) e App/VibeVault-dati',
+    '(cartelle recenti). I percorsi sono relativi: puoi collegare l\'SSD a un altro PC.',
     '',
-    'Eliminare: i file vanno prima nel Cestino interno (Trash/). Solo "Svuota',
+    'Eliminare: i file vanno prima nel Cestino interno (.vibevault/trash). Solo "Svuota',
     'cestino" con doppia conferma li cancella davvero dal disco.',
     ''
   ].join('\r\n')

@@ -29,7 +29,8 @@ function viewTitle(): string {
     case 'library': return LIBRARY_VIEWS[v.id].label
     case 'album': return s.albums.find((a) => a.id === v.id)?.name ?? 'Album'
     case 'tag': return `#${s.tags.find((t) => t.id === v.id)?.name ?? 'tag'}`
-    case 'folder': return v.path.split('/').pop() || 'Cartella'
+    case 'folder': return v.path.split('/').pop() || s.vault?.name || 'Cartella'
+    case 'year': return String(v.year)
     case 'review': return 'Review'
     case 'duplicates': return 'Duplicati'
     case 'trash': return 'Cestino'

@@ -1,0 +1,5 @@
+# script e istruzioni per Windows: sempre con fine riga CRLF
+*.cmd text eol=crlf
+VibeVault-SSD/*.txt text eol=crlf
+# parti dell'exe: binarie
+*.part[0-9][0-9] binary

@@ -36,7 +36,7 @@ beforeAll(async () => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'vv-it-'))
   fs.mkdirSync(path.join(root, 'Library'), { recursive: true })
   await makeSampleLibrary(root)
-  vs = openVault({ root, tools, workerDir: WORKERS, appVersion: 'test', thumbPool: 2 })
+  vs = openVault({ root, tools, workerDir: WORKERS, appVersion: 'test', thumbPool: 2, layout: 'legacy' })
 })
 
 afterAll(async () => {

@@ -23,7 +23,7 @@ async function setup(files: Record<string, string | Buffer>): Promise<Required<V
     fs.mkdirSync(path.dirname(p), { recursive: true })
     fs.writeFileSync(p, content)
   }
-  vs = openVault({ root, tools, workerDir: WORKERS, appVersion: 'test', thumbPool: 1 })
+  vs = openVault({ root, tools, workerDir: WORKERS, appVersion: 'test', thumbPool: 1, layout: 'legacy' })
   vs.scan.start()
   await vs.scan.wait()
   return vs.handlers as Required<VaultSession['handlers']>

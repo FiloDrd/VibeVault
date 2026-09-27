@@ -4,6 +4,7 @@ import type { DB } from './db/database'
 import { MediaRepo } from './db/mediaRepo'
 import { AlbumRepo, SettingsRepo, TagRepo } from './db/orgRepo'
 import { OperationsRepo, TrashRepo } from './db/opsRepo'
+import { DEFAULT_SETTINGS } from '@shared/types'
 import type { Vault } from './vault'
 import type { IpcEventName, IpcEvents } from '@shared/ipc'
 
@@ -62,7 +63,7 @@ export class AppContext {
     this.media = new MediaRepo(db)
     this.tags = new TagRepo(db)
     this.albums = new AlbumRepo(db)
-    this.settings = new SettingsRepo(db)
+    this.settings = new SettingsRepo(db, { ...DEFAULT_SETTINGS, scanFolders: vault.defaultScanFolders })
     this.ops = new OperationsRepo(db)
     this.trash = new TrashRepo(db)
     this.log = new Logger(vault.logsDir)

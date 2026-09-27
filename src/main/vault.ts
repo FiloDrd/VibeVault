@@ -3,18 +3,22 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 
 /**
- * Struttura portatile del vault (tutto dentro una cartella, es. sull'SSD):
+ * Due layout possibili per la root:
  *
- *   <root>/App/            eseguibile portatile (opzionale)
- *   <root>/Library/        i media dell'utente
- *   <root>/VaultData/      database.sqlite, edits/, sidecar/, backups/, vault.json
- *   <root>/Cache/          thumbnails/, previews/ (rigenerabili)
- *   <root>/Trash/          cestino interno
- *   <root>/Exports/        Foto/, Video/, GIF/
- *   <root>/Logs/           log operazioni (JSONL)
+ * "folder" (predefinito): la root è una cartella qualsiasi scelta dall'utente
+ * (es. E:\Foto). Le foto restano dove sono; l'app scrive SOLO dentro la cartella
+ * nascosta <root>/.vibevault/ (database, miniature, cestino, log, backup).
+ *
+ * "legacy" (vault v0.1): <root>/Library, <root>/VaultData, <root>/Cache, <root>/Trash,
+ * <root>/Exports, <root>/Logs. Riconosciuto dalla presenza di VaultData/.
  *
  * Nel database si salvano SOLO percorsi relativi alla root, con separatore '/'.
  */
+export type VaultLayout = 'folder' | 'legacy'
+
+/** Nome della cartella dati nascosta nel layout "folder". */
+export const DATA_DIR_NAME = '.vibevault'
+
 export const VAULT_DIRS = [
   'Library',
   'Library/Foto',
@@ -38,17 +42,27 @@ export const VAULT_DIRS = [
   'Logs'
 ] as const
 
-/** Cartelle interne che lo scanner non deve mai indicizzare. */
+const FOLDER_DIRS = [DATA_DIR_NAME, `${DATA_DIR_NAME}/cache/thumbnails`, `${DATA_DIR_NAME}/cache/previews`, `${DATA_DIR_NAME}/trash`, `${DATA_DIR_NAME}/logs`, `${DATA_DIR_NAME}/backups`]
+
+/** Cartelle interne del layout legacy che lo scanner non deve mai indicizzare. */
 export const RESERVED_TOP_LEVEL = new Set(['App', 'VaultData', 'Cache', 'Trash', 'Logs', 'Exports'])
+/** Nel layout "folder" l'unica cartella riservata è quella dei dati dell'app. */
+export const RESERVED_FOLDER_LAYOUT = new Set([DATA_DIR_NAME])
 
 /**
  * Confronto come fa Windows: senza distinzione maiuscole e ignorando punti/spazi
  * finali ("cache", "Cache." e "CACHE " aprono tutte la stessa cartella).
  */
-export function isReservedName(segment: string): boolean {
+export function isReservedName(segment: string, reserved: Iterable<string> = RESERVED_TOP_LEVEL): boolean {
   const n = segment.replace(/[. ]+$/g, '').toLowerCase()
-  for (const r of RESERVED_TOP_LEVEL) if (r.toLowerCase() === n) return true
+  for (const r of reserved) if (r.replace(/[. ]+$/g, '').toLowerCase() === n) return true
   return false
+}
+
+/** Il layout legacy si riconosce dalla cartella VaultData con database o marker. */
+export function detectLayout(rootAbs: string): VaultLayout {
+  const vd = path.join(rootAbs, 'VaultData')
+  return fs.existsSync(path.join(vd, 'vault.json')) || fs.existsSync(path.join(vd, 'database.sqlite')) ? 'legacy' : 'folder'
 }
 
 export interface VaultMarker {
@@ -61,24 +75,35 @@ export interface VaultMarker {
 
 export class Vault {
   readonly root: string
+  readonly layout: VaultLayout
 
-  constructor(rootAbs: string) {
+  constructor(rootAbs: string, layout?: VaultLayout) {
     this.root = path.resolve(rootAbs)
+    this.layout = layout ?? detectLayout(this.root)
   }
 
-  get dataDir(): string { return path.join(this.root, 'VaultData') }
+  private get legacy(): boolean { return this.layout === 'legacy' }
+  get dataDir(): string { return this.legacy ? path.join(this.root, 'VaultData') : path.join(this.root, DATA_DIR_NAME) }
   get dbPath(): string { return path.join(this.dataDir, 'database.sqlite') }
   get backupsDir(): string { return path.join(this.dataDir, 'backups') }
-  get thumbsDir(): string { return path.join(this.root, 'Cache', 'thumbnails') }
-  get previewsDir(): string { return path.join(this.root, 'Cache', 'previews') }
-  get trashDir(): string { return path.join(this.root, 'Trash') }
-  get logsDir(): string { return path.join(this.root, 'Logs') }
-  get libraryDir(): string { return path.join(this.root, 'Library') }
+  get cacheDir(): string { return this.legacy ? path.join(this.root, 'Cache') : path.join(this.dataDir, 'cache') }
+  get thumbsDir(): string { return path.join(this.cacheDir, 'thumbnails') }
+  get previewsDir(): string { return path.join(this.cacheDir, 'previews') }
+  get trashDir(): string { return this.legacy ? path.join(this.root, 'Trash') : path.join(this.dataDir, 'trash') }
+  /** Percorso relativo del cestino interno ('Trash' o '.vibevault/trash'). */
+  get trashRel(): string { return this.legacy ? 'Trash' : `${DATA_DIR_NAME}/trash` }
+  get logsDir(): string { return this.legacy ? path.join(this.root, 'Logs') : path.join(this.dataDir, 'logs') }
+  /** Dove l'utente mette i media: Library/ nel layout legacy, la root stessa altrimenti. */
+  get libraryDir(): string { return this.legacy ? path.join(this.root, 'Library') : this.root }
   get markerPath(): string { return path.join(this.dataDir, 'vault.json') }
+  /** Nomi di primo livello che non contengono media dell'utente. */
+  get reservedNames(): Set<string> { return this.legacy ? RESERVED_TOP_LEVEL : RESERVED_FOLDER_LAYOUT }
+  /** Cartelle da scansionare di default. */
+  get defaultScanFolders(): string[] { return this.legacy ? ['Library'] : [''] }
 
-  /** Crea la struttura cartelle (idempotente). */
+  /** Crea la struttura cartelle (idempotente). Nel layout "folder" solo .vibevault/. */
   ensureStructure(): void {
-    for (const d of VAULT_DIRS) fs.mkdirSync(path.join(this.root, d), { recursive: true })
+    for (const d of this.legacy ? VAULT_DIRS : FOLDER_DIRS) fs.mkdirSync(path.join(this.root, d), { recursive: true })
   }
 
   /**
@@ -114,7 +139,7 @@ export class Vault {
     const rel = path.relative(this.root, path.resolve(abs))
     if (rel === '') return ''
     if (rel.startsWith('..') || path.isAbsolute(rel)) {
-      throw new Error(`Percorso fuori dal vault: ${abs}`)
+      throw new Error(`Percorso fuori dalla cartella: ${abs}`)
     }
     return rel.split(path.sep).join('/')
   }
@@ -133,10 +158,10 @@ export class Vault {
     return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
   }
 
-  /** True se il relativo appartiene a una cartella interna (Cache, Trash, ...). */
+  /** True se il relativo appartiene a una cartella interna (Cache, Trash, .vibevault, ...). */
   isReserved(rel: string): boolean {
     const top = normalizeRel(rel).split('/')[0]
-    return isReservedName(top)
+    return top !== '' && isReservedName(top, this.reservedNames)
   }
 }
 

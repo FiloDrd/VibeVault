@@ -1,6 +1,7 @@
 import { AppContext, type Tools } from './context'
 import { openDatabase } from './db/database'
-import { Vault } from './vault'
+import { execFile } from 'node:child_process'
+import { Vault, type VaultLayout } from './vault'
 import { ScanService } from './services/scanService'
 import { ThumbService } from './services/thumbService'
 import { ActionHandlers, createHandlers } from './handlers'
@@ -25,9 +26,15 @@ export function openVault(opts: {
   appVersion: string
   emit?: <E extends IpcEventName>(event: E, payload: IpcEvents[E]) => void
   thumbPool?: number
+  /** Forza il layout (i test del formato v0.1 usano 'legacy'); di norma viene rilevato. */
+  layout?: VaultLayout
 }): VaultSession {
-  const vault = new Vault(opts.root)
+  const vault = new Vault(opts.root, opts.layout)
   vault.ensureStructure()
+  // Windows: la cartella dati .vibevault/ resta nascosta in Esplora risorse
+  if (vault.layout === 'folder' && process.platform === 'win32') {
+    execFile('attrib', ['+h', vault.dataDir], { windowsHide: true }, () => { /* best effort */ })
+  }
   const { marker, rootChanged } = vault.touchMarker(opts.appVersion)
   const { db, message } = openDatabase(vault.dbPath)
   const ctx = new AppContext(vault, db, opts.tools, opts.emit)

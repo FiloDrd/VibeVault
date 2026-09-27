@@ -50,14 +50,14 @@ export function TrashView() {
   }
 
   if (entries === null) return <div className="flex h-full items-center justify-center text-dim"><Spinner size={22} /></div>
-  if (!entries.length) return <Empty icon={<Trash2 size={26} />} title="Il cestino è vuoto">Gli elementi eliminati finiscono qui, dentro la cartella <b>Trash/</b> del vault. Puoi ripristinarli in qualsiasi momento.</Empty>
+  if (!entries.length) return <Empty icon={<Trash2 size={26} />} title="Il cestino è vuoto">Gli elementi eliminati finiscono qui, nel cestino interno di VibeVault (dentro la cartella foto, non nel Cestino di Windows). Puoi ripristinarli in qualsiasi momento.</Empty>
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center gap-3 border-b border-line px-5 py-3">
         <div className="min-w-0 flex-1">
           <p className="text-[13px]">{formatCount(entries.length)} elementi · {formatBytes(total)}</p>
-          <p className="text-[12px] text-faint">I file restano nella cartella Trash/ del vault finché non svuoti il cestino. Lo svuotamento automatico è disattivato.</p>
+          <p className="text-[12px] text-faint">I file restano nel cestino interno finché non lo svuoti. Lo svuotamento automatico è disattivato.</p>
         </div>
         <Button variant="soft" icon={<RotateCcw size={15} />} onClick={() => void restore()}>{sel.size ? `Ripristina ${sel.size}` : 'Ripristina tutto'}</Button>
         <Button variant="danger" icon={<AlertTriangle size={15} />} onClick={purge}>{sel.size ? `Elimina ${sel.size} per sempre` : 'Svuota cestino'}</Button>

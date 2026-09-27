@@ -1,6 +1,6 @@
 {
-  "report": "VibeVault MVP v0.1 — stato dei task secondo il protocollo di handoff della specifica",
-  "date": "2026-09-23",
+  "report": "VibeVault v0.2 — stato dei task secondo il protocollo di handoff della specifica",
+  "date": "2026-09-27",
   "handoffs": [
     { "agent_id": "software_architect", "task_id": "T001", "status": "done",
       "summary": "electron-vite (main/preload/renderer), React 19, TS 5.9, Tailwind 4, IPC tipizzato unico in src/shared/ipc.ts",
@@ -40,6 +40,12 @@
     { "agent_id": "photo_editor_agent", "task_id": "T015/T016", "status": "not_started", "summary": "Editor foto non distruttivo + export", "decisions": [], "files_changed": [], "tests_run": [], "risks": [], "blockers": [], "next_steps": [] },
     { "agent_id": "video_editor_agent", "task_id": "T017/T018", "status": "not_started", "summary": "Trim video, export, GIF optimizer", "decisions": [], "files_changed": [], "tests_run": [], "risks": [], "blockers": [], "next_steps": [] },
     { "agent_id": "packaging_devops_agent", "task_id": "T021", "status": "done", "summary": "npm run dist:ssd → release/VibeVault/{App,Library}; root rilevata dalla cartella padre di App/, profilo Chromium dentro il vault", "decisions": ["build a cartella invece di exe singolo auto-estraente (avvio più rapido)", "nessuna ricompilazione nativa (npmRebuild: false)"], "files_changed": ["electron-builder.yml", "scripts/make-ssd-bundle.mjs"], "tests_run": ["build Linux avviata senza variabili d'ambiente"], "risks": ["build Windows da eseguire su Windows"], "blockers": [], "next_steps": ["icona, firma del codice opzionale"] },
-    { "agent_id": "docs_agent", "task_id": "T022", "status": "done", "summary": "README con avvio, portabilità, sicurezza, scorciatoie, architettura, roadmap; LEGGIMI.txt nel bundle", "decisions": [], "files_changed": ["README.md"], "tests_run": [], "risks": [], "blockers": [], "next_steps": [] }
+    { "agent_id": "docs_agent", "task_id": "T022", "status": "done", "summary": "README con avvio, portabilità, sicurezza, scorciatoie, architettura, roadmap; LEGGIMI.txt nel bundle", "decisions": [], "files_changed": ["README.md"], "tests_run": [], "risks": [], "blockers": [], "next_steps": [] },
+    { "agent_id": "orchestrator", "task_id": "T023", "status": "done",
+      "summary": "v0.2: cartella qualsiasi come libreria (dati in .vibevault/), apertura e cambio cartella senza riavvio con elenco recenti, date da Google Takeout e dal nome del file, provenienza automatica (smartphone, fotocamera, WhatsApp, social), viste Anni/Con posizione/Video brevi-lunghi/Danneggiati, album automatici da Takeout, copie doppie e originali -edited nascosti, JSON che segue la foto; exe portatile in parti con npm run dist:parts",
+      "decisions": ["indice dentro la cartella foto (.vibevault/) per viaggiare con l'SSD", "vault v0.1 riconosciuto dalla presenza di VaultData/", "priorità date: Takeout > EXIF > nome file > data file", "copie nascoste con shadow_of invece di cancellarle", "chiave del vault nelle URL vv:// per non mescolare le miniature tra cartelle", "cartelle recenti apribili solo se scelte prima con il dialog di sistema"],
+      "files_changed": ["src/main/vault.ts", "src/main/rootResolver.ts", "src/main/index.ts", "src/main/protocol.ts", "src/main/db/*", "src/main/services/*", "src/main/workers/scanner.worker.ts", "src/shared/*", "src/renderer/src/**", "tests/folder.test.ts", "scripts/make-exe-parts.mjs", "electron-builder.yml", "VibeVault-SSD/*"],
+      "tests_run": ["npm test (39 test)", "typecheck", "app reale con Electron + Playwright (scelta cartella, timeline, cambio cartella, impostazioni)", "build Linux packaged (cartelle recenti relative all'exe)", "build Windows portable + verifica SHA-256 delle parti"],
+      "risks": ["exe Windows costruito da Linux: da provare su Windows", "nomi delle cartelle Takeout tradotti: coperti i più comuni"], "blockers": [], "next_steps": ["provare su un Takeout reale", "raggruppamento timeline per anno", "T014 regole smart"] }
   ]
 }

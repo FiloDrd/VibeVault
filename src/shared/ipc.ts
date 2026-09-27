@@ -1,6 +1,6 @@
 import type {
   Album, AppSettings, ColorLabel, DuplicateGroup, Flag, FolderNode, GridItem, LibraryStats, MediaDetails,
-  MediaQuery, OperationRecord, OpResult, ScanErrorEntry, ScanProgress, Tag, ThumbStatus, TrashEntry, VaultInfo
+  MediaQuery, OperationRecord, OpResult, RecentFolder, ScanErrorEntry, ScanProgress, Tag, ThumbStatus, TrashEntry, VaultInfo
 } from './types'
 
 /**
@@ -8,9 +8,16 @@ import type {
  * espone `window.vv.invoke(canale, ...args)` tipizzato su questa mappa.
  */
 export interface IpcContract {
-  'vault.info': () => VaultInfo
-  'vault.openRootDialog': () => VaultInfo | null
+  /** null finché l'utente non ha scelto una cartella */
+  'vault.info': () => VaultInfo | null
   'vault.revealRoot': () => void
+
+  /** Sceglie una cartella qualsiasi con il dialog di sistema e la apre. */
+  'folder.openDialog': () => { ok: boolean; canceled?: boolean; message?: string }
+  'folder.recent': () => RecentFolder[]
+  /** Apre una cartella dell'elenco recenti (solo percorsi già scelti dall'utente). */
+  'folder.open': (path: string) => { ok: boolean; message?: string }
+  'folder.forget': (path: string) => RecentFolder[]
 
   'settings.get': () => AppSettings
   'settings.set': (patch: Partial<AppSettings>) => AppSettings
@@ -83,13 +90,14 @@ export interface IpcEvents {
   'thumbs:status': ThumbStatus
   'library:changed': { reason: string; ids?: number[] }
   'operations:changed': { latest?: OperationRecord }
-  'vault:changed': VaultInfo
+  'vault:changed': VaultInfo | null
 }
 
 export type IpcEventName = keyof IpcEvents
 
 export const IPC_CHANNELS: IpcChannel[] = [
-  'vault.info', 'vault.openRootDialog', 'vault.revealRoot',
+  'vault.info', 'vault.revealRoot',
+  'folder.openDialog', 'folder.recent', 'folder.open', 'folder.forget',
   'settings.get', 'settings.set',
   'library.scan', 'library.cancelScan', 'library.scanStatus', 'library.scanErrors', 'library.addScanFolderDialog',
   'library.query', 'library.stats', 'library.folders', 'library.duplicates', 'library.rebuildIndex',

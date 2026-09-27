@@ -3,7 +3,7 @@ import { Worker } from 'node:worker_threads'
 import type { AppContext } from '../context'
 import type { ScannerInput, ScannerMessage } from '../workers/scanner.worker'
 import type { ScanErrorEntry, ScanProgress } from '@shared/types'
-import { RESERVED_TOP_LEVEL, normalizeRel } from '../vault'
+import { normalizeRel } from '../vault'
 
 const IDLE: ScanProgress = { phase: 'idle', scanned: 0, added: 0, updated: 0, unchanged: 0, missing: 0, moved: 0, errors: 0 }
 
@@ -40,11 +40,12 @@ export class ScanService {
       includeAudio: settings.includeAudio,
       ffprobe: this.ctx.tools.ffprobe,
       full: !!opts.full,
-      reserved: [...RESERVED_TOP_LEVEL]
+      reserved: [...this.ctx.vault.reservedNames]
     }
     this.errors = []
     this.progress = { ...IDLE, phase: 'walking', startedAt: Date.now() }
     const addedIds: number[] = []
+    const albumFolders: { folder: string; title: string }[] = []
     this.ctx.log.info('scan.start', { folders, full: !!opts.full })
 
     const worker = new Worker(this.workerPath, { workerData: input })
@@ -75,6 +76,11 @@ export class ScanService {
             this.progress.moved = this.ctx.media.reconcileMoves(addedIds)
             this.progress.missing -= this.progress.moved
             this.progress.added -= this.progress.moved
+            // Google Takeout: album dalle cartelle album, copie doppie e originali "-edited" nascosti
+            const sources = new Set([...this.ctx.albums.folderAlbumSources(), ...albumFolders.map((a) => a.folder)])
+            this.ctx.media.resolveShadows([...sources])
+            const created = this.ctx.albums.syncFolderAlbums(albumFolders, new Set(addedIds))
+            if (created) this.ctx.log.info('scan.takeoutAlbums', { created })
           }
           this.ctx.media.rebuildFolders(folders)
         } catch (e) {
@@ -116,6 +122,9 @@ export class ScanService {
               this.progress.currentPath = msg.currentPath
               this.progress.phase = msg.phase
               emit()
+              break
+            case 'album':
+              albumFolders.push({ folder: msg.folder, title: msg.title })
               break
             case 'error':
               this.progress.errors++

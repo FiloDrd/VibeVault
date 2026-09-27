@@ -46,16 +46,19 @@ export function fileResponse(abs: string, mime: string, rangeHeader: string | nu
 }
 
 /**
- *   vv://thumb/<id>    miniatura WebP (generata al volo con priorità se manca)
+ *   vv://thumb/<id>?k=<vaultId>   miniatura WebP (generata al volo con priorità se manca)
  *   vv://preview/<id>  anteprima JPEG grande per formati non visualizzabili (HEIC, TIFF, RAW)
  *   vv://media/<id>    file originale in streaming (sola lettura)
  */
-export function registerProtocolHandler(getCtx: () => AppContext | null, getThumbs: () => ThumbService | null): void {
+export function registerProtocolHandler(getSession: () => { ctx: AppContext; thumbs: ThumbService; vaultId: string } | null): void {
   protocol.handle(SCHEME, async (req) => {
-    const ctx = getCtx()
-    const thumbs = getThumbs()
-    if (!ctx || !thumbs) return notFound('Vault non pronto')
+    const s = getSession()
+    if (!s) return notFound('Nessuna cartella aperta')
+    const { ctx, thumbs } = s
     const url = new URL(req.url)
+    // ?k=<vaultId>: una richiesta nata per un'altra cartella (dopo un cambio) non riceve le miniature di questa
+    const k = url.searchParams.get('k')
+    if (k && k !== s.vaultId) return notFound('Cartella cambiata')
     const id = Number(url.pathname.replace(/^\//, ''))
     if (!Number.isInteger(id) || id <= 0) return notFound()
     try {

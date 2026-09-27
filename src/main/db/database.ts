@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import Database from 'better-sqlite3'
-import { MIGRATIONS } from './schema'
+import { MIGRATIONS, POST_MIGRATIONS } from './schema'
 
 export type DB = Database.Database
 
@@ -55,6 +55,7 @@ export function migrate(db: DB): number {
   for (let v = current; v < MIGRATIONS.length; v++) {
     db.transaction(() => {
       db.exec(MIGRATIONS[v])
+      POST_MIGRATIONS[v]?.(db)
       db.pragma(`user_version = ${v + 1}`)
     })()
   }

@@ -119,7 +119,7 @@ export function createHandlers(s: { ctx: AppContext; scan: ScanService; thumbs: 
       // Solo file generati dall'app, riconosciuti dal nome (<4 cifre>/<id>.webp|jpg): mai altro
       let removed = 0
       const isRealDir = (p: string) => { try { const st = fs.lstatSync(p); return st.isDirectory() && !st.isSymbolicLink() } catch { return false } }
-      const cacheRoot = path.join(ctx.vault.root, 'Cache')
+      const cacheRoot = ctx.vault.cacheDir
       if (isRealDir(cacheRoot)) {
         for (const dir of [ctx.vault.thumbsDir, ctx.vault.previewsDir]) {
           if (!isRealDir(dir)) continue

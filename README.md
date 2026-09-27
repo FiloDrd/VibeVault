@@ -1,9 +1,11 @@
 # VibeVault
 
-Media manager **local-first, offline e portatile** per organizzare, rivedere e pulire migliaia di foto, video e GIF direttamente da SSD.
+Media manager **local-first, offline e portatile** per sfogliare, rivedere e organizzare migliaia di foto, video e GIF **direttamente dalla cartella in cui li tieni già** (anche su SSD).
+Scegli una cartella qualsiasi: VibeVault legge tutte le sottocartelle e mostra un'unica timeline ordinata per data, classificata in automatico.
 Nessun cloud, nessun account, nessuna telemetria. Gli originali non vengono mai modificati.
 
-> Stato: **MVP v0.1** — libreria, timeline, lightbox, review, organizzazione, cestino e undo funzionanti e testati.
+> Stato: **v0.2** — cartella qualsiasi come libreria, date da Google Takeout e dal nome del file, classificazione automatica
+> (provenienza, anni, posizione, durata), timeline, lightbox, review, organizzazione, cestino e undo funzionanti e testati.
 > Editor foto/video, ottimizzatore GIF e regole smart sono le prossime tappe (vedi [Roadmap](#roadmap)).
 
 ---
@@ -21,57 +23,69 @@ npm run dev          # avvia l'app in sviluppo (vault in .vault-dev\)
 
 > Se `npm run dev` dice **"Electron uninstall"**, l'eseguibile di Electron non è stato scaricato: lancia `npm run setup`.
 
-Per usare una tua cartella come vault in sviluppo:
+Al primo avvio l'app chiede la cartella delle foto. Per aprirne subito una in sviluppo:
 
 ```powershell
-$env:VIBEVAULT_ROOT = "D:\VibeVault"; npm run dev
+$env:VIBEVAULT_ROOT = "D:\Foto"; npm run dev
 ```
 
-### Build portatile per l'SSD
+### Exe portatile per GitHub (come è distribuito oggi)
+
+```powershell
+npm run dist:parts
+```
+
+Genera `dist\VibeVault-<versione>-portable.exe`, lo spezza in parti da 19.000.000 byte dentro `VibeVault-SSD\`
+(`VibeVault.exe.part00`…) e rigenera `VibeVault-SSD\UNISCI-VibeVault.cmd` con il nuovo SHA-256.
+Chi scarica il repository lancia `UNISCI-VibeVault.cmd` per ricomporre e verificare `VibeVault.exe`.
+La build Windows si può fare anche da Linux: servono `@img/sharp-win32-x64` e l'`ffmpeg.exe` di `ffmpeg-static`
+(`npm_config_platform=win32 node node_modules/ffmpeg-static/install.js`).
+
+### Build portatile a cartella
 
 ```powershell
 npm run dist:ssd
 ```
 
-Crea `release\VibeVault\` con questa struttura:
-
-```
-VibeVault\
-  App\VibeVault.exe      ← l'app (avvio diretto, nessuna installazione)
-  Library\               ← metti qui foto, video e GIF (anche in sottocartelle)
-  LEGGIMI.txt
-```
-
-Copia la cartella `VibeVault` sull'SSD e avvia `App\VibeVault.exe`. Al primo avvio vengono create:
-
-| Cartella | Contenuto | Si può cancellare? |
-|---|---|---|
-| `Library\` | i tuoi media | **no**, sono i tuoi file |
-| `VaultData\` | `database.sqlite`, `backups\`, `vault.json`, profilo Chromium | sì, ma perdi tag/album/rating (i file restano; una scansione ricostruisce l'indice) |
-| `Cache\` | miniature e anteprime | sì, si rigenerano |
-| `Trash\` | cestino interno | solo svuotando il cestino dall'app |
-| `Exports\` | file esportati (editor, prossime versioni) | sì |
-| `Logs\` | log operazioni in JSONL | sì |
-
-`npm run dist:portable` genera invece un singolo `.exe` portatile: comodo, ma si estrae in una cartella temporanea a ogni avvio (più lento). Per l'SSD è consigliato `dist:ssd`.
+Crea `release\VibeVault\` con `App\VibeVault.exe` (avvio diretto, più rapido dell'exe singolo) e `LEGGIMI.txt`.
 
 ---
 
-## Portabilità SSD: come funziona
+## Dove finiscono i dati
 
-- Nel database ci sono **solo percorsi relativi** alla root del vault (`Library/Foto/2024/IMG_0001.jpg`), sempre con `/`.
-- La root viene rilevata così: se l'exe sta in `…\VibeVault\App\`, la root è `…\VibeVault\`. In alternativa: variabile `VIBEVAULT_ROOT` o la scelta fatta da *Impostazioni → Cambia vault* (salvata in `vibevault.config.json` accanto all'exe, in forma relativa quando possibile).
-- Se l'SSD cambia lettera (da `E:` a `F:`) o la cartella viene spostata, l'app lo rileva e continua a funzionare senza toccare nulla.
-- Le cartelle da indicizzare devono stare **dentro** il vault: è ciò che le rende portatili.
-- Il database è ricostruibile: se `database.sqlite` è corrotto viene messo da parte (mai cancellato) e ne viene creato uno nuovo; una scansione reindicizza tutto.
+Scegli una cartella qualsiasi (es. `E:\Foto`): le foto restano dove sono, l'app scrive solo qui:
+
+| Cartella | Contenuto | Si può cancellare? |
+|---|---|---|
+| `E:\Foto\.vibevault\` (nascosta) | `database.sqlite`, `cache\` (miniature), `trash\` (cestino interno), `backups\`, `logs\`, `vault.json` | sì, ma perdi tag/album/voti e i file nel cestino; una scansione ricostruisce l'indice |
+| `VibeVault-dati\` accanto all'exe | cartelle recenti (`config.json`) e profilo Chromium | sì |
+
+- Nel database ci sono **solo percorsi relativi** alla cartella scelta (`Viaggi/2023/IMG_0001.jpg`), sempre con `/`:
+  se l'SSD cambia lettera o la cartella viene spostata, tutto continua a funzionare.
+- Le cartelle recenti sono salvate relative all'exe quando stanno sullo stesso disco: exe e foto sull'SSD si ritrovano su qualsiasi PC.
+- Si cambia cartella senza riavviare (menu in cima alla sidebar); ogni cartella ha il proprio indice, album e tag.
+- I vault della v0.1 (`Library\`, `VaultData\`, `Cache\`, `Trash\`…) vengono riconosciuti e aperti come prima.
+- Il database è ricostruibile: se è corrotto viene messo da parte (mai cancellato) e ne viene creato uno nuovo.
+
+## Date e classificazione automatica
+
+- **Data di scatto**, in ordine: JSON di Google Takeout → EXIF → nome del file (`IMG_20240315_101010`, `IMG-20240315-WA0001`,
+  `WhatsApp Image 2024-03-15 at …`, `Screenshot_…`, millisecondi Unix) → data del file. L'inspector dice da dove viene.
+- **Provenienza** (colonna `origin`): smartphone o fotocamera dalla marca EXIF, WhatsApp e social dal nome del file, screenshot.
+- **Viste automatiche**: Foto/Video/GIF/Raw/Screenshot, Provenienza, Anni, Con posizione, Video verticali/brevi/lunghi,
+  File grandi, Senza data, File danneggiati.
+- **Google Takeout** (`src/shared/takeout.ts`): abbina ogni foto al suo JSON (`.json`, `.supplemental-metadata.json`, nomi troncati
+  a 51 caratteri, `IMG(1).jpg` ↔ `IMG.jpg(1).json`, copie `-edited`) e importa data, GPS, descrizione, preferito e persone (come tag).
+  Le cartelle album (con `metadata.json`) diventano album; le copie doppie negli album e gli originali delle foto `-edited` sono
+  nascosti nella timeline (`shadow_of`) ma visibili nella loro cartella e nell'inspector. Spostando o rinominando una foto, il JSON la segue.
 
 ## Sicurezza dei file
 
 - **Nessuna sovrascrittura, mai.** Sposta, copia, rinomina e ripristina scelgono un nome libero (`foto (1).jpg`) o rifiutano l'operazione.
-- **Elimina = sposta nel Cestino interno** (`Trash\AAAA-MM-GG\`). L'unica cancellazione reale è *Svuota cestino*, con **doppia conferma** (dialog + scrivere `ELIMINA`).
+- **Elimina = sposta nel Cestino interno** (`.vibevault\trash\AAAA-MM-GG\`, `Trash\…` nei vault v0.1). L'unica cancellazione reale è *Svuota cestino*, con **doppia conferma** (dialog + scrivere `ELIMINA`).
 - **Preferiti protetti**: non vanno nel cestino finché non togli il preferito.
 - **Undo globale** (Ctrl+Z o "Annulla" nel toast) per spostamenti, rinomine, cestino/ripristino, copie, tag, album, rating, flag, etichette e note. La cronologia completa è in *Impostazioni → Cronologia operazioni*.
-- **Backup automatico del database** prima delle operazioni su 50+ file (ultimi 10 in `VaultData\backups\`).
+- **Backup automatico del database** prima delle operazioni su 50+ file (ultimi 10 in `.vibevault\backups\`).
 - **Spostamenti tra dischi**: copia esclusiva → verifica dimensione → rimozione della sorgente.
 - **File spostati fuori dall'app** (con Esplora risorse): alla scansione successiva vengono riconosciuti tramite dimensione + hash rapido e mantengono tag, album e valutazioni.
 - **Privacy**: il renderer non può fare richieste di rete (bloccate a livello di sessione), nessuna telemetria, nessun upload. I log contengono solo percorsi relativi, mai GPS o contenuti.
@@ -120,6 +134,7 @@ Parole libere cercano in nome file, note e tag. Filtri combinabili:
 ```
 tag:mare  ext:jpg  year:2023  camera:fuji  folder:Viaggi  rating:>=4
 is:fav  is:video  is:gif  is:raw  is:keep  is:maybe  is:trash  is:screenshot  is:gps
+is:whatsapp  is:phone  is:camera  is:social
 ```
 
 ### Duplicati
@@ -131,10 +146,10 @@ Vista **Duplicati**: candidati per dimensione + hash rapido, poi **Verifica SHA-
 
 ```
 src/
-  shared/        tipi, formati supportati, contratto IPC tipizzato (unica fonte di verità)
+  shared/        tipi, formati, date dal nome file, provenienza, Google Takeout, contratto IPC tipizzato
   main/          processo principale Electron (Node)
-    vault.ts         struttura portatile e conversione percorsi relativi/assoluti (anti path-traversal)
-    rootResolver.ts  rilevamento root (portable / config / dev)
+    vault.ts         layout "cartella" (.vibevault/) e v0.1, conversione percorsi relativi/assoluti (anti path-traversal)
+    rootResolver.ts  dati dell'app accanto all'exe, cartelle recenti (relative quando possibile)
     db/              SQLite (better-sqlite3): schema+migrazioni, repository media/tag/album/operazioni/cestino
     services/        scansione, miniature, operazioni file sicure, azioni con undo, metadata
     workers/         worker_threads: scanner (walk+EXIF+ffprobe+hash) e miniature (sharp/FFmpeg)
@@ -164,6 +179,10 @@ npm test          # build + tutti i test
 npm run typecheck
 ```
 
+`tests/folder.test.ts` apre una cartella qualsiasi con un finto Google Takeout e verifica: nessuna scrittura fuori da `.vibevault/`,
+sottocartelle con nomi un tempo riservati, date da JSON/EXIF/nome, JSON troncati e `(1)`, copie `-edited`, GPS/note/preferito/persone,
+provenienza, timeline senza doppioni, album automatici, cestino e spostamenti con il JSON al seguito, migrazione v1 → v2.
+
 `tests/integration.test.ts` genera una libreria campione (JPG con EXIF/GPS, PNG, WebP, GIF animata, MP4 orizzontale/verticale, WebM, file corrotti/vuoti, duplicati, cartelle nascoste) e verifica: scansione e metadata, percorsi relativi, miniature foto/GIF/video, duplicati SHA-256, tag/rating/undo, spostamento senza sovrascrittura + undo, rinomina con template + undo, cestino con preferiti protetti, ripristino senza sovrascrivere, svuotamento solo con conferma, review → cestino con dry-run, riconciliazione di file spostati fuori dall'app, file mancanti, **vault spostato su un altro percorso**, log senza percorsi assoluti.
 
 ## Formati
@@ -187,6 +206,7 @@ I video con codec non supportati dal player interno si aprono con un clic nel pl
 | T010 album/tag/rating/preferiti · T011 review · T012 cestino · T013 move/copy/rename + undo | ✅ |
 | T019 performance (virtualizzazione, coda priorità, worker) | ✅ base, da profilare su 100k file reali |
 | T020 QA (test motore + flussi UI verificati) · T021 build portatile · T022 documentazione | ✅ |
+| T023 cartella qualsiasi, Google Takeout, date dal nome, classificazione automatica | ✅ v0.2 |
 | T014 regole smart con dry-run | ⏭ prossimo |
 | T015–T016 editor foto non distruttivo + export | ⏭ |
 | T017–T018 trim video, export MP4/WebM/GIF, ottimizzatore GIF | ⏭ |
